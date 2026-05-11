@@ -85,8 +85,10 @@ class MomentumSizer:
 
         full_kelly = win_rate - (1.0 - win_rate) / avg_win_loss_ratio
         if full_kelly <= 0:
-            # Negative Kelly: strategy has no edge at this point — use minimum sizing
-            return 0.0
+            # Breakeven/negative Kelly (e.g. priors W=0.5, R=1.0): no Kelly edge
+            # estimable yet — fall back to fixed per-trade risk so the strategy
+            # can begin sampling. Live updates will refine once trades close.
+            return self._cfg.per_trade_risk_pct
 
         return min(full_kelly * self._cfg.kelly_fraction, self._cfg.per_trade_risk_pct)
 
@@ -123,12 +125,11 @@ class MomentumSizer:
 
         risk_amount = equity * risk_fraction  # $$ to risk on this trade
 
-        # P&L per lot per 1 price unit move = contract_size × tick_value / tick_size
-        # For standard FX (EURUSD, tick_size=0.00001):
-        #   1 lot = 100,000 units, 1 pip = $10, stop=25 pips → risk_per_lot=$250
-        pnl_per_lot_per_price_unit = (
-            self._spec.contract_size * self._spec.tick_value / self._spec.point
-        )
+        # P&L per lot per 1 price unit move = tick_value / point.
+        # tick_value is already the account-currency value of one point per lot,
+        # so multiplying by 1/point converts to value per full price unit.
+        # EURUSD: 1.0 / 0.00001 = 100,000 → 1 pip (0.0001) on 1 lot = $10. ✓
+        pnl_per_lot_per_price_unit = self._spec.tick_value / self._spec.point
         risk_per_lot = stop_distance_price * pnl_per_lot_per_price_unit
 
         if risk_per_lot <= 0:

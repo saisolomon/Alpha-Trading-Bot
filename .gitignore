@@ -43,6 +43,7 @@ logs/
 data/cache/
 data/*.parquet
 data/*.csv
+reports/
 
 # IDE
 .vscode/
