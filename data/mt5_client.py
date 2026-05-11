@@ -170,7 +170,7 @@ class MT5Client:
         """Initialize terminal + login, with exponential back-off retries."""
         _require_mt5()
         for attempt in range(_MAX_RETRIES):
-            ok = mt5.initialize(path=self._path if self._path else None)
+            ok = mt5.initialize(self._path) if self._path else mt5.initialize()
             if not ok:
                 code, msg = _last_error()
                 log.error(
