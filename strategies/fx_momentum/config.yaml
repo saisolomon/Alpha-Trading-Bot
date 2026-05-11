@@ -1,0 +1,75 @@
+# FX Cross-Sectional Momentum — Strategy Configuration
+# All values must match the HYPOTHESIS.md derivations.
+# Change parameters only after walk-forward re-validation.
+
+strategy:
+  name: fx_momentum
+  version: "1.0"
+  timeframe: D1                   # D1 bars for signal; execution on open of next bar
+
+universe:
+  # All 7 USD majors. Return sign is flipped for USD-base pairs (USDJPY, USDCAD, USDCHF)
+  # so all rankings are expressed as "foreign currency strength vs. USD".
+  symbols:
+    - EURUSD
+    - GBPUSD
+    - AUDUSD
+    - NZDUSD
+    - USDJPY
+    - USDCAD
+    - USDCHF
+  # Symbols where USD is the base — returns are negated before cross-sectional ranking
+  usd_base_symbols:
+    - USDJPY
+    - USDCAD
+    - USDCHF
+
+signal:
+  # Primary: cross-sectional momentum
+  formation_bars: 20              # ≈ 1 calendar month of D1 bars
+  skip_bars: 1                    # skip most recent bar (avoid 1-day reversal)
+  long_z_threshold: 0.5           # go long if z-score > +0.5
+  short_z_threshold: -0.5         # go short if z-score < -0.5
+  max_long_positions: 2           # concentration cap (FTMO aggregate risk limit)
+  max_short_positions: 2
+
+  # Secondary: trend confirmation (EMA)
+  trend_ema_bars: 50              # must be aligned with momentum direction to confirm
+  # Long only if close > 50-bar EMA; short only if close < 50-bar EMA.
+  require_trend_confirmation: true
+
+  # Regime filter: cross-sectional volatility
+  xvol_lookback_bars: 5           # rolling window for cross-sectional vol of z-scores
+  xvol_pause_threshold: 2.0       # pause all signals if cross-sectional vol > 2.0 sigma
+  # This kills the strategy during momentum crashes / deleveraging episodes.
+
+  # Rebalancing
+  rebalance_day: 4                # 0=Mon .. 4=Fri; compute signal on Friday, execute Monday open
+  # Friday close → signal stored → Monday open execution → positions held ~5 days
+
+risk:
+  per_trade_risk_pct: 0.005       # 0.5% of account equity per trade (CLAUDE.md default)
+  kelly_fraction: 0.25            # fractional Kelly (¼ Kelly — conservative)
+  max_aggregate_risk_pct: 0.02    # 2% total across all open stops (FTMO Layer 3)
+  min_stop_atr_multiple: 1.5      # stop loss placed at 1.5× ATR(14) from entry
+  atr_period: 14
+  # Stop size determines position size via risk budget; this is the floor.
+
+execution:
+  # If holding through the weekend: must be on a Swing account.
+  # Default (Standard/Challenge): flatten Friday 21:00 Europe/Prague.
+  flatten_friday_eod: true
+  flatten_prague_hour: 21
+
+backtest:
+  initial_capital: 100000.0
+  commission_per_lot: 7.0         # USD round-trip per standard lot (conservative)
+  avg_spread_pips:
+    EURUSD: 0.8
+    GBPUSD: 1.0
+    AUDUSD: 1.0
+    NZDUSD: 1.2
+    USDJPY: 0.9
+    USDCAD: 1.2
+    USDCHF: 1.1
+  slippage_multiplier: 0.5        # 0.5× spread as slippage (CostModel default)
