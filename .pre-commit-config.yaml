@@ -1,0 +1,28 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - pydantic>=2.7.4
+          - pydantic-settings>=2.3.4
+          - types-PyYAML>=6.0.12
+          - pandas-stubs>=2.2.2.240603
+        args: [--config-file=pyproject.toml]
+        exclude: ^(research/|tests/)
+
+  - repo: local
+    hooks:
+      - id: pytest-quick
+        name: pytest (no live)
+        language: system
+        entry: python -m pytest -q -m "not live"
+        pass_filenames: false
+        always_run: true

@@ -1,0 +1,59 @@
+# default.yaml — global defaults for the FTMO MT5 bot.
+# Values here are safe baselines. Override per-environment in dev.yaml / paper.yaml / live.yaml.
+# Env vars (MT5_LOGIN, MT5_PASSWORD, etc.) always take precedence over YAML values.
+
+mt5:
+  login: ${MT5_LOGIN}
+  password: ${MT5_PASSWORD}
+  server: ${MT5_SERVER}
+  path: ${MT5_PATH}
+
+ftmo:
+  account_type: ${FTMO_ACCOUNT_TYPE}
+  initial_capital: ${FTMO_INITIAL_CAPITAL}
+
+risk:
+  # FTMO outer limits — NEVER change these unless FTMO changes their rules.
+  ftmo_daily_loss_pct_2step: 0.05      # 5% of initial capital (2-Step)
+  ftmo_daily_loss_pct_1step: 0.03      # 3% of initial capital (1-Step)
+  ftmo_max_loss_pct: 0.10              # 10% of initial capital
+
+  # Internal limits — the bot's actual operating box, well inside FTMO's lines.
+  internal_daily_kill_pct_2step: 0.03  # 3% → 60% of FTMO's 5%
+  internal_daily_kill_pct_1step: 0.02  # 2% → 66% of FTMO's 3%
+  internal_max_kill_pct: 0.07          # 7% → 70% of FTMO's 10%
+
+  # Per-trade sizing
+  per_trade_risk_pct_min: 0.005        # 0.5% minimum
+  per_trade_risk_pct_max: 0.010        # 1.0% hard cap
+  per_trade_risk_pct_default: 0.005    # 0.5% default (conservative)
+
+  # Portfolio-level caps
+  aggregate_open_risk_pct: 0.02        # 2% total across all open stop distances
+  correlated_cluster_cap_pct: 0.03     # 3% cap on any correlated cluster
+  correlation_window_days: 60
+  correlation_threshold: 0.60
+
+  # Best Day governor (1-Step accounts only)
+  best_day_throttle_ratio: 0.40        # throttle when ratio > 40% (FTMO limit: 50%)
+
+  # Equity watcher
+  equity_poll_interval_ms: 250         # sub-second poll — tune vs. CPU before going live
+  ftmo_imminent_buffer_pct: 0.005      # 0.5% warning zone before FTMO line
+
+  # Headroom check
+  headroom_safety_buffer_pct: 0.01     # reject order if worst-case fill within 1% of FTMO line
+
+  # Weekend / news
+  flatten_before_weekend: true
+  friday_flatten_hour_prague: 21       # 21:00 Europe/Prague
+  news_blackout_minutes: 2             # ±2 min window (FTMO standard funded rule)
+
+backtest:
+  walk_forward_is_months: 12
+  walk_forward_oos_months: 3
+  walk_forward_step_months: 1
+  slippage_multiplier: 0.5             # 0.5× average spread
+  commission_per_lot: 7.0              # round-trip commission in account currency per lot
+  output_dir: backtest/output
+  random_seed: 42

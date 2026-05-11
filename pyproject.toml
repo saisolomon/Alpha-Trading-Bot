@@ -1,0 +1,75 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ftmo-bot"
+version = "0.1.0"
+description = "Production FTMO MT5 systematic trading bot"
+requires-python = ">=3.11"
+dependencies = [
+    "MetaTrader5>=5.0.45",
+    "numpy>=1.26.4",
+    "pandas>=2.2.2",
+    "pyarrow>=16.1.0",
+    "scipy>=1.13.1",
+    "statsmodels>=0.14.2",
+    "scikit-learn>=1.5.0",
+    "pydantic>=2.7.4",
+    "pydantic-settings>=2.3.4",
+    "pyyaml>=6.0.1",
+    "python-dotenv>=1.0.1",
+    "structlog>=24.2.0",
+    "APScheduler>=3.10.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.2",
+    "pytest-cov>=5.0.0",
+    "hypothesis>=6.104.2",
+    "ruff>=0.5.0",
+    "mypy>=1.10.0",
+    "ipykernel>=6.29.4",
+    "pre-commit>=3.7.1",
+    "pandas-stubs>=2.2.2.240603",
+    "types-PyYAML>=6.0.12.20240311",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "PIE", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+"research/*" = ["ALL"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["MetaTrader5.*", "structlog.*", "APScheduler.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["research.*"]
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+markers = [
+    "live: requires a running MT5 terminal (deselect with -m 'not live')",
+    "smoke: quick connectivity checks",
+]
+
+[tool.coverage.run]
+source = ["data", "execution", "risk", "strategies", "utils", "backtest"]
+omit = ["tests/*", "research/*"]
