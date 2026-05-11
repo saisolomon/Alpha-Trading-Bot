@@ -63,6 +63,26 @@ Format every entry with a date stamp `YYYY-MM-DD`. Append at the top of each sub
 
 ### Signal & Alpha Research
 
+### 2026-05-11 -- Index Time-Series Momentum (US500, USTEC, US30, DE40) -- rejected at signal-decay stage
+**Hypothesis tested:** Equity index CFDs exhibit positive return autocorrelation at 20-120d lags (Moskowitz, Ooi, Pedersen 2012); long the indices in their own uptrends, short in downtrends, vol-targeted sizing. Universe = 4 major USD/EUR-denominated indices on broker MetaQuotes-Demo (US500, USTEC, US30, DE40). 5y D1 (2021-05 to 2026-05; USTEC 3.8y).
+**Result:** Rejected before backtesting -- signal-decay (autocorrelation) test fails the Phase 1 pass criterion.
+**Numbers:**
+  - Cross-universe average lag-k autocorrelation: lag-5 +0.028, lag-20 +0.010, lag-60 -0.005, lag-120 -0.002, lag-250 -0.005. Pass criterion was lag 20-120 average > 0.02 -- fails.
+  - Past-formation -> forward-holding correlation across {20,60,120}d formation x {1,5,20}d holding: **all 36 cells negative** across all 4 symbols. P(all 36 < 0 | iid null) ~= 1.5e-11. Strongest signal: USTEC (120d formation, 20d forward) = -0.363.
+  - Lag-1 raw autocorrelation negative on all 4 symbols (-0.013 to -0.061) -- short-term mean reversion is the dominant single-bar pattern.
+**Why it (didn't) work:** The 2021-2026 sample is structurally mean-reverting at the index level, not momentum-driven. Three regimes contribute:
+  1. 2022 bear (Fed hiking) followed sharply by 2023 recovery -- past-60d returns negative, future-60d positive.
+  2. Post-COVID market structure (faster Fed responsiveness, options-flow / 0DTE gamma squeezes) accelerates mean-reversion at index level even when single-stock momentum still works.
+  3. The MOP 2012 paper used 1965-2009 data (44 years) including multiple structural regimes. A 5-year sample dominated by post-COVID dynamics is too narrow to confirm the asset-class-wide TSMOM result.
+**Implication for future work:**
+  - Do NOT proceed to TSMOM backtest. The signal does not exist on this universe in this sample.
+  - The empirical finding -- consistent negative formation-holding correlation -- is itself a tradeable hypothesis: **short-horizon mean-reversion at the index level**. This is supported by Lehmann (1990), Lo and MacKinlay (1990) for individual stocks, and post-2020 academic interest in dispersion / overnight reversal effects on indices. Worth a separate hypothesis doc and Phase 1 test if pursued.
+  - Alternative pivots that have NOT yet been ruled out:
+    - **FX carry** (interest-rate-differential signal -- different mechanism, different regime sensitivity from momentum). Same broker, same data layer.
+    - **Index mean-reversion** at z>2 short-formation z-scores (the inverse of what was tested here, with statistical evidence from this very test).
+    - **Volatility-regime / vol-carry** strategies on indices (sell vol when realized vol low, buy when high) -- different signal entirely.
+  - **Process validation:** the Phase 1 signal-decay test caught this in ~10 minutes of compute, before building any strategy code. Per CLAUDE.md sec.4 Phase 1 step 4 -- this is exactly what that step is for. Always run it before committing to a backtest.
+
 ### 2026-05-11 -- FX Cross-Sectional Momentum (7 USD majors) -- killed
 **Hypothesis tested:** Rank 7 USD-major FX pairs by 20-bar formation-period return (USD-base pairs inverted), z-score, long top / short bottom by z-score, with EMA(50) trend confirmation and a cross-sectional volatility regime filter. Sizing: 1/4 Kelly fractional, ATR(14)*1.5 stop, 0.5% per-trade risk. Reference: Menkhoff et al. (2012), Asness et al. (2013).
 **Result:** Failed. No deployable edge.
