@@ -260,6 +260,25 @@ class MT5Client:
             raise MT5Error(f"symbol_info({symbol!r}) failed: {msg}", code=code)
         return info
 
+    def fetch_symbol_info(self, symbol: str) -> dict[str, object]:
+        """Return key contract parameters for symbol as a plain dict.
+
+        Keys: broker_name, contract_size, tick_size, tick_value, point,
+              stops_level, freeze_level, filling_mode, spread (in points).
+        """
+        info = self.symbol_info(symbol)
+        return {
+            "broker_name": symbol,
+            "contract_size": float(info.trade_contract_size),  # type: ignore[attr-defined]
+            "tick_size": float(info.trade_tick_size),  # type: ignore[attr-defined]
+            "tick_value": float(info.trade_tick_value),  # type: ignore[attr-defined]
+            "point": float(info.point),  # type: ignore[attr-defined]
+            "stops_level": int(info.trade_stops_level),  # type: ignore[attr-defined]
+            "freeze_level": int(info.trade_freeze_level),  # type: ignore[attr-defined]
+            "filling_mode": int(info.filling_mode),  # type: ignore[attr-defined]
+            "spread": int(info.spread),  # type: ignore[attr-defined]
+        }
+
     def symbol_tick(self, symbol: str) -> object:
         self.ensure_connected()
         tick = mt5.symbol_info_tick(symbol)
