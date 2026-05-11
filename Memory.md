@@ -63,7 +63,27 @@ Format every entry with a date stamp `YYYY-MM-DD`. Append at the top of each sub
 
 ### Signal & Alpha Research
 
-*No entries yet.*
+### 2026-05-11 -- FX Cross-Sectional Momentum (7 USD majors) -- killed
+**Hypothesis tested:** Rank 7 USD-major FX pairs by 20-bar formation-period return (USD-base pairs inverted), z-score, long top / short bottom by z-score, with EMA(50) trend confirmation and a cross-sectional volatility regime filter. Sizing: 1/4 Kelly fractional, ATR(14)*1.5 stop, 0.5% per-trade risk. Reference: Menkhoff et al. (2012), Asness et al. (2013).
+**Result:** Failed. No deployable edge.
+**Numbers:**
+  - Full period D1 (2021-05 to 2026-05, 5y): Sharpe -0.50, total return -15.3%, max DD -22.0%, win rate 37.8%, profit factor 0.84, 707 trades. FTMO sim FAIL (357 max-loss-line breaches).
+  - Walk-forward OOS: -1.14 Sharpe (2024) / +0.04 Sharpe (2025). IS->OOS degradation +0.05 (so OOS is honest, just unprofitable).
+  - 54-cell parameter sweep on D1 (formation in {16,20,24}, ema in {40,50,60}, z-thresh in {0.3,0.5,0.7}, trend-filter on/off): **0/54 cells positive Sharpe.** Best cell -0.31 Sharpe. Sharpe std 0.14 (filter on), 0.15 (filter off) -- surface is stable, this is NOT an overfitting artifact, the strategy is consistently losing.
+  - 54-cell sweep on H4: catastrophically worse, Sharpe range -3.82 to -1.88, all cells near -100% drawdown. Transaction-cost drag (commission + spread + slippage on ~3000 trades over 3y) overwhelms any signal at H4 in this universe.
+  - EMA trend-filter ablation: mean delta-Sharpe (off - on) = -0.11 on D1, -0.66 on H4 -- filter helps on net (it is doing real work). Removing it does not unlock edge.
+**Why it (didn't) work:** Two compounding reasons.
+  1. **Regime.** Academic FX-momentum Sharpe (Menkhoff 2012) was concentrated pre-2008. The 2010s+ regime (low rate dispersion, central-bank-driven currency moves, USD as dominant systematic factor) is unfavorable to momentum on majors. Breakeven on this setup needs win-rate > 1/(1+R) ~= 42%; we hit 37.8%, the ~4 percentage-point gap is consistent with the post-2008 momentum-decay literature.
+  2. **Universe too narrow.** 7 pairs cross-sectionally is undersampled. The z-score normalisation amplifies idiosyncratic noise when the cross-section is small. Standard academic tests use 16-50 currencies.
+**Implication for future work:**
+  - Do NOT iterate further on this hypothesis with this universe at D1/H4. Parameter surface is honest and there is no hidden pocket of alpha.
+  - If revisiting FX momentum: broader universe (G10 cross-rates -- 45 pairs), add carry overlay (long high-yielders, short low-yielders + momentum tilt), or move to short-horizon (M5-M30) where microstructure-driven momentum still has measurable edge.
+  - More promising pivots within scope (FTMO + MT5):
+    - **FX carry** (interest-rate-differential signal -- different mechanism, different regime sensitivity).
+    - **Index momentum / breakout** on US500, NAS100, GER40 -- post-2010 equity momentum still has documented alpha and CFD spreads are tight on these.
+    - **FX mean-reversion at extremes** (z > 2 in short formation windows -- opposite signal to momentum).
+    - **Volatility regime / vol-of-vol** strategies.
+  - **Infrastructure validated.** The PortfolioEngine, SharedSignalStore (no-look-ahead), walk-forward harness, FTMO simulator, and Kelly sizing all work and produce honest numbers. Reusable for the next hypothesis.
 
 **Template:**
 ```
@@ -79,7 +99,15 @@ Format every entry with a date stamp `YYYY-MM-DD`. Append at the top of each sub
 
 ### Backtest & Validation Findings
 
-*No entries yet.*
+### 2026-05-11 -- Two latent sizing bugs caught only by running real-data Phase 2
+**What happened:** First Phase 2 run produced 0 trades. Tracing showed `MomentumSizer.kelly_fraction(0.50, 1.0)` returns 0.0 at the breakeven priors (`full_kelly = W - (1-W)/R = 0`) -- there's no Kelly edge estimable yet, but returning 0 short-circuits all sizing. After patching that to fall back to `per_trade_risk_pct`, the second run produced 707 trades but with avg-win=$7 / avg-loss=$5 on a $100K account -- a clear "everything is at the broker minimum" signature.
+**Root cause of the lot-sizing bug:** `pnl_per_lot_per_price_unit = contract_size * tick_value / point` is wrong. `tick_value` already encodes the per-lot account-currency value of one point; multiplying by `contract_size` again inflates `risk_per_lot` by ~1e5, which collapses `raw_lots` to 0 and the `min_lots = 0.01` floor takes over. Correct formula is just `tick_value / point`. (For EURUSD with tick_value=1.0 and point=1e-5: $1 / 0.00001 = $100,000 per lot per full price unit; a 1-pip move = 0.0001 * $100,000 = $10/lot. Matches `costs.py::SymbolSpec.pnl()`.)
+**Validation that future-me should remember:** When `avg_loss` divided by `0.005 * equity` is roughly `1/100`, you are clipped to the 0.01-lot minimum and the sizing formula is the suspect. The 0.01-lot floor disguises sizing bugs because trades still happen and the equity curve still moves.
+**Why the unit tests didn't catch it:** Test_fx_momentum tests sized lots in isolation with synthetic prices but never asserted on the absolute lot magnitude. Lesson: in sizing tests, assert `lots > min_lots` when risk budget is non-trivial.
+
+### 2026-05-11 -- mt5.initialize() does NOT accept path=None
+**Symptom:** `mt5.initialize(path=None)` throws "Invalid path argument" even with `path` being the parameter that should accept it.
+**Fix:** Call `mt5.initialize(self._path) if self._path else mt5.initialize()` -- a bare call with no args is required when no terminal-path override is needed. The kwarg form with None is treated as an explicit positional value.
 
 ---
 
