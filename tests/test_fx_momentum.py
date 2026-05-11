@@ -430,11 +430,18 @@ class TestMomentumSizer:
         kf = sizer.kelly_fraction(win_rate=0.55, avg_win_loss_ratio=1.4)
         assert kf == pytest.approx(0.005)  # capped at per_trade_risk_pct
 
-    def test_zero_kelly_when_no_edge(self) -> None:
-        sizer = self._sizer()
-        # win_rate=0.3, avg_win_loss=0.8 → full_kelly negative → 0
+    def test_breakeven_or_negative_kelly_falls_back_to_fixed_risk(self) -> None:
+        """When full_kelly <= 0 (no estimable edge yet), the sizer falls back
+        to per_trade_risk_pct so the strategy can sample data. Used to return
+        0 which created a zero-trades bug on the breakeven prior W=0.5, R=1.0;
+        see Memory.md 2026-05-11."""
+        sizer = self._sizer(risk_pct=0.005)
+        # win_rate=0.3, avg_win_loss=0.8  ->  full_kelly = 0.3 - 0.7/0.8 = -0.575
         kf = sizer.kelly_fraction(win_rate=0.30, avg_win_loss_ratio=0.80)
-        assert kf == 0.0
+        assert kf == pytest.approx(0.005)
+        # Breakeven priors: same fallback
+        kf_breakeven = sizer.kelly_fraction(win_rate=0.50, avg_win_loss_ratio=1.0)
+        assert kf_breakeven == pytest.approx(0.005)
 
     def test_kelly_fallback_on_zero_win_rate(self) -> None:
         sizer = self._sizer(risk_pct=0.005)
