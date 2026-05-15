@@ -63,6 +63,40 @@ Format every entry with a date stamp `YYYY-MM-DD`. Append at the top of each sub
 
 ### Signal & Alpha Research
 
+### 2026-05-15 -- Search for second uncorrelated strategy -- four failed candidates
+**Goal:** Find a second strategy uncorrelated with Index MR to enable a portfolio book worthy of FTMO deployment (Index MR alone is too slow at 1.2% CAGR to pass Phase 1).
+
+**Candidates tested, in order:**
+
+1. **Index TSMOM (4 indices, 5y)** -- already rejected 2026-05-11 at signal-decay stage. All 36 cells negative correlation; TSMOM does not exist on this universe in this regime.
+
+2. **Metals TSMOM (XAUUSD/XAGUSD/XPTUSD, 12y)** -- failed signal-decay test. Cross-universe lag-20-120 average autocorrelation = -0.014 / -0.019 / -0.020 (negative when TSMOM expects positive). 26 of 27 formation->holding cells negative. Same anti-momentum signature as indices.
+
+3. **Metals long-only MR (bucket test, 12y)** -- failed. Inconsistent across the three: gold has bullish drift across all deciles (no clean dip-bounce), silver no signal, platinum has rally-fade (opposite asymmetry from indices). Building from this would be curve-fitting to fragmented results.
+
+4. **FX MR (EURUSD/GBPUSD/AUDUSD, 12y)** -- viable but too weak to deploy. Bucket test on 7 majors found only EURUSD statistically significant (t=-3.07); 12y backtest on the 3 long-side-positive pairs gave full IS Sharpe 0.06, 9 OOS windows mean Sharpe 0.27 / median 0.45, 67% positive. Worst window -1.07 Sharpe. Max DD -9.02% (close to FTMO -10% line).
+
+**The 50/50 portfolio test was the decisive measurement:**
+  - Correlation between Index MR and FX MR daily returns: **+0.136** (EXCELLENT diversification, n=3116 aligned days)
+  - 50/50 portfolio: Sharpe 0.31 (vs Index MR alone 0.38), CAGR 0.69% (vs 1.20%), Vol 2.25% (vs 3.20%), MaxDD -5.36% (vs -6.68%)
+  - **Sharpe DROPPED** despite excellent correlation. Why: adding a near-zero-Sharpe uncorrelated strategy doesn't lift portfolio Sharpe -- it just shrinks the contribution from the strategy that actually works. The math: sqrt(1+rho) vol reduction is dominated by mu reduction when mu2 << mu1.
+  - Calmar ratio: 2.31 alone -> 1.59 portfolio. Net worse.
+
+**Pattern across all four candidates:** post-2014 macro regime on FTMO-accessible D1 markets is dominated by mean-reversion on equities, weak/noisy everywhere else. Time-series momentum failed on every asset class tried (indices and metals). Mean-reversion outside equities is either too weak (FX) or inconsistent across the universe (metals).
+
+**Implications for next direction:**
+  - The "easy" diversifier searches are exhausted on D1. The honest options are:
+    a) **Different timeframe** -- test the same MR signal on H4 indices. Higher trading frequency may compound to higher Sharpe; gamma-flow mean-reversion is academically stronger at intraday horizons. Risk: transaction costs scale unfavorably.
+    b) **Different universe** -- try crypto (BTCUSD/ETHUSD if broker offers; check). Crypto has different macro drivers and has been mean-reverting at extreme moves (Khandani-Lo type pattern). Different regime sensitivity.
+    c) **Different signal mechanism on same universe** -- volatility-regime strategies (sell vol in calm, buy vol in stress), or breakout strategies (buy on confirmed range break). Distinct from MR mechanism.
+    d) **Accept the single-leg classification** -- run Index MR alone, paper-trade for 4 weeks, decide deployment based on live tracking error vs backtest. Don't chase a second leg that doesn't exist in this regime.
+  - Memory.md preserves the negative results so future sessions don't waste cycles re-testing the same ideas.
+
+**Files added (kept as research artifacts even though strategy not deployed):**
+  - scripts/probe_commodities.py
+  - scripts/run_fx_meanrev_backtest.py
+  - scripts/portfolio_correlation.py
+
 ### 2026-05-11 -- Index Mean-Reversion -- spread stress + 12y walk-forward findings
 **What changed:** Re-ran the validated mean-reversion strategy with two methodological upgrades and an extended dataset.
 1. **Gap-fill model added** to backtest/meanrev_engine.py. Previously ATR-stop / ATR-TP exits always filled at stop_price / tp_price exactly; now if bar opens past the level (gap-through), fills at bar_open (worse for stops, better for TPs). Realistic behaviour.
