@@ -1,0 +1,23 @@
+(lang dune 3.10)
+(name ftmo_risk)
+(version 0.1.0)
+
+(generate_opam_files true)
+
+(source (github your-org/ftmo-bot))
+(authors "FTMO bot team")
+(maintainers "FTMO bot team")
+(license MIT)
+
+(package
+ (name ftmo_risk)
+ (synopsis "Type-safe FTMO risk-rule state machine")
+ (description
+  "Implements FTMO daily-loss / max-loss / Best Day / news-blackout rules \
+   as a pure functional state machine with property-based test coverage.")
+ (depends
+  (ocaml (>= 4.14))
+  dune
+  (qcheck :with-test)
+  (alcotest :with-test)
+  (qcheck-alcotest :with-test)))

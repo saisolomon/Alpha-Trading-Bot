@@ -1,0 +1,4 @@
+(library
+ (name ftmo_rules_lib)
+ (public_name ftmo_risk)
+ (wrapped false))

@@ -1,0 +1,4 @@
+(executable
+ (name main)
+ (public_name ftmo_risk_demo)
+ (libraries ftmo_risk))
