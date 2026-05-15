@@ -234,25 +234,36 @@ class MeanRevEngine:
                     continue
                 bar = data[sym].iloc[sym_idx]
                 spec = self._specs[sym]
-                hit_stop = bar["low"] <= pos.stop_price
-                hit_tp = bar["high"] >= pos.tp_price
+                bar_open = float(bar["open"])
+                bar_low = float(bar["low"])
+                bar_high = float(bar["high"])
+                hit_stop = bar_low <= pos.stop_price
+                hit_tp = bar_high >= pos.tp_price
                 exit_reason: str | None = None
                 fill_price: float | None = None
                 if hit_stop and hit_tp:
                     # Both touched this bar; assume stop fires first (conservative).
                     exit_reason = "atr_stop"
-                    fill_price = pos.stop_price
+                    # Gap fill: if bar opened past the stop (gap-through), fill at open
+                    # (worse than stop_price). Otherwise the stop fired intrabar -> stop_price.
+                    fill_price = bar_open if bar_open <= pos.stop_price else pos.stop_price
                 elif hit_stop:
                     exit_reason = "atr_stop"
-                    fill_price = pos.stop_price
+                    fill_price = bar_open if bar_open <= pos.stop_price else pos.stop_price
                 elif hit_tp:
                     exit_reason = "atr_tp"
-                    fill_price = pos.tp_price
+                    # Mirror for take-profit: gap-up past TP fills at open (favorable
+                    # gap that we capture); intrabar TP -> tp_price exactly.
+                    fill_price = bar_open if bar_open >= pos.tp_price else pos.tp_price
 
                 if exit_reason is not None:
                     gross = spec.pnl(pos.entry_price, fill_price, pos.direction, pos.lots)
                     close_comm = self._cost.commission(pos.lots, spec)
-                    net = gross - pos.open_commission - close_comm
+                    # ATR-stop and ATR-TP exits don't pay slippage via fill_price()
+                    # because we fill at the trigger level. The bid-ask cost on exit
+                    # is still real, so add it explicitly.
+                    exit_slip_cost = self._cost.slippage_cost(spec, pos.lots)
+                    net = gross - pos.open_commission - close_comm - exit_slip_cost
                     realised_pnl += net
                     closed_trades.append(MeanRevTrade(
                         symbol=sym,
@@ -265,7 +276,7 @@ class MeanRevEngine:
                         entry_time=pos.entry_time,
                         exit_time=ts,
                         gross_pnl=gross,
-                        commission=pos.open_commission + close_comm,
+                        commission=pos.open_commission + close_comm + exit_slip_cost,
                         net_pnl=net,
                         z_at_entry=0.0,        # filled by entry code; left 0 if missing
                         exit_reason=exit_reason,

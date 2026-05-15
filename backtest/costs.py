@@ -137,5 +137,25 @@ class CostModel:
     def commission(self, volume: float, spec: SymbolSpec) -> float:
         return spec.commission_per_lot * volume
 
+    def slippage_cost(
+        self,
+        spec: SymbolSpec,
+        volume: float,
+        bar_volume: float | None = None,
+    ) -> float:
+        """Account-currency cost of one fill's slippage.
+
+        For ATR-stop / ATR-TP exits the engine fills at the trigger price,
+        not a slipped market price -- but in reality the bid-ask spread
+        still costs you on exit. This helper computes that cost in $ so
+        the engine can deduct it from gross P&L explicitly.
+
+        For exit_z / time_stop exits the cost is already baked into
+        `fill_price()` so callers should NOT double-charge.
+        """
+        slip_in_price = self.slippage_points(spec, volume, bar_volume) * spec.point
+        pnl_per_lot_per_price = spec.tick_value / spec.point
+        return slip_in_price * pnl_per_lot_per_price * volume
+
 
 DEFAULT_COST_MODEL = CostModel()

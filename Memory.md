@@ -63,6 +63,37 @@ Format every entry with a date stamp `YYYY-MM-DD`. Append at the top of each sub
 
 ### Signal & Alpha Research
 
+### 2026-05-11 -- Index Mean-Reversion -- spread stress + 12y walk-forward findings
+**What changed:** Re-ran the validated mean-reversion strategy with two methodological upgrades and an extended dataset.
+1. **Gap-fill model added** to backtest/meanrev_engine.py. Previously ATR-stop / ATR-TP exits always filled at stop_price / tp_price exactly; now if bar opens past the level (gap-through), fills at bar_open (worse for stops, better for TPs). Realistic behaviour.
+2. **Exit slippage cost added** to CostModel.slippage_cost() and applied to ATR stop / ATR TP fills. The previous engine charged slippage only on market entries/exits, not on triggered exits; in reality the bid-ask spread costs you on EVERY round-trip. Net effect on 5y baseline result: Sharpe 0.48 -> 0.47 (small).
+3. **Extended dataset** to 12y D1 (2014-05 to 2026-05) for US500 / US30 / DE40 (USTEC capped at 3.8y by broker history).
+
+**Spread stress test (0.5x to 5x baseline spreads):**
+  - IS Sharpe: 0.47 -> 0.46 (5x baseline)
+  - OOS avg Sharpe: 0.99 -> 0.98
+  - Total return: +8.1% -> +7.8%
+  - FTMO PASS at every multiplier.
+  - Conclusion: strategy edge does NOT depend on tight spreads. Break-even is well above 5x baseline (~250 pts on US500). Strategy is robust to live broker conditions.
+
+**12-year backtest (vs the previous 5y "candidate" claim):**
+  - Full IS: Sharpe **0.38**, total return +15.45% over 12 years (~1.2% CAGR), max DD -6.68%, 194 trades, win 55.2%, PF 1.34. FTMO PASS.
+  - 9 walk-forward OOS windows (2017-2026): mean OOS Sharpe **0.49**, median **0.27**, 78% positive. IS->OOS degradation -0.11.
+  - Worst OOS year (2019-2020): Sharpe **-0.52**, return -1.9%, win 35.7%, PF 0.61. Strategy gave whipsaw entries in the pre-COVID + crash-onset period. FTMO still PASS (max DD never breached).
+  - 2022-2023 bear: strategy correctly hibernated (vol filter paused entries) -- only 6 trades, near-zero return.
+  - Best OOS year (2020-2021): Sharpe 1.81 but only 3 trades -- statistical noise from a single great signal during V-shaped post-COVID rally.
+
+**Honest reassessment of the 5y "candidate" classification:**
+  - The original 2-window walk-forward on 5y data was LUCKY -- it spanned the strategy's two best post-COVID years and missed the 2019-2020 negative year and the 2022 hibernation.
+  - Median OOS Sharpe across 9 years is 0.27, not the 1.01 reported on the 2-window test. The 0.27 number is the more honest single-year expectation.
+  - The signal is REAL (78% positive years, IS->OOS degr negative, parameter surface flat) but it is a **modest satellite alpha**, not a primary FTMO Challenge candidate by itself.
+
+**Implications for deployment plan:**
+  - At 0.5% per-trade risk, 12y total return = 15% -> CAGR 1.2%. Passing FTMO Phase 1 (10% target, no time limit) would take ~7-8 years on average -- impractical alone.
+  - Scaling to 1% per-trade risk would double return AND double max DD to ~13% -- breaches FTMO -10% line. Cannot simply size up.
+  - **Path to deployment:** combine with 2+ uncorrelated strategies as portfolio legs. The mean-reversion leg contributes ~0.5 Sharpe consistent low-vol grind; needs complementary strategies that fire in DIFFERENT regimes (trending, range-bound, vol-spike) to lift portfolio Sharpe to deployment level.
+  - **Worth keeping a kill-switch:** if rolling 6-month Sharpe drops below -0.5, halt. The 2019-2020 OOS window is exactly this scenario -- the strategy was wrong for ~12 months. Real-money should not ride a -0.5 Sharpe for a full year.
+
 ### 2026-05-11 -- Index Mean-Reversion Long-Only (US500, USTEC, US30, DE40) -- candidate
 **Hypothesis tested:** After a 5-20 day drawdown deep enough that the rolling z-score of past-formation return is < -1.0 (~bottom 15% of historical drawdowns), equity index CFD prices bounce over the next 1-10 days. Long-only entry; symmetric short side rejected by 2026-05-11 bucket test (top decile forward returns positive on all 4 indices -- big rallies kept rallying). Mechanism: asymmetric institutional flow (most equity capital long-only -- dips attract reversion flow, rallies have no equivalent fade pressure), dealer-gamma overshoots, vol-target rebalancing. References: Lehmann 1990, Jegadeesh 1990, Khandani-Lo 2007, Garleanu-Pedersen-Poteshman 2009, Nagel 2012, Bollerslev et al. 2018.
 **Result:** Real, deployable signal. Phase 2 results meet 7/8 hypothesis-doc pass criteria.
