@@ -117,7 +117,11 @@ std::vector<double> compute_rolling_zscore(
     }
 
     auto emit = [&](std::size_t i) {
-        if (valid < 2) {
+        // Match pandas .rolling(N) default min_periods=N: require the
+        // window to be FULL of valid values. Otherwise output NaN.
+        // Anything else risks trading on partial-window indicators
+        // (research-vs-live drift waiting to happen).
+        if (valid < L) {
             out[i] = kNaN;
             return;
         }

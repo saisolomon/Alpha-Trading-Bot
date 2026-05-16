@@ -25,6 +25,7 @@ dependencies = [
     "structlog>=24.2.0",
     "APScheduler>=3.10.4",
     "matplotlib>=3.10.9",
+    "pybind11>=3.0.4",
 ]
 
 [project.optional-dependencies]

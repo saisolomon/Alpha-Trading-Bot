@@ -18,6 +18,4 @@
  (depends
   (ocaml (>= 4.14))
   dune
-  (qcheck :with-test)
-  (alcotest :with-test)
-  (qcheck-alcotest :with-test)))
+  (qcheck-core :with-test)))

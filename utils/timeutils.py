@@ -50,10 +50,7 @@ def next_prague_midnight(dt: datetime) -> datetime:
     Used by the equity watcher to schedule the next daily-reset event.
     """
     today_midnight = prague_midnight_of(dt)
-    prague = to_prague(dt)
-    if prague >= today_midnight + timedelta(seconds=1):
-        return today_midnight + timedelta(days=1)
-    return today_midnight
+    return today_midnight + timedelta(days=1)
 
 
 def seconds_until_next_prague_midnight(dt: datetime | None = None) -> float:

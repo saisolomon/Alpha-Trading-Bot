@@ -13,6 +13,15 @@ dist/
 build/
 *.egg
 
+# C++ build (cpp/libquant)
+cpp/build/
+
+# OCaml build (ocaml/libftmorisk)
+ocaml/_build/
+ocaml/*.install
+# Note: ocaml/*.opam IS committed -- it's auto-generated from dune-project
+# but consumers need it to install without dune.
+
 # Virtual environments
 .venv/
 venv/

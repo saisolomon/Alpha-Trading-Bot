@@ -11,9 +11,20 @@ type account_type =
   | Funded_swing
   | Funded_rewards_1step
 
-type usd = float
-let usd_of_float x = x
-let usd_to_float x = x
+(* Wrap the float in a single-constructor variant. This prevents OCaml 5.x's
+   unboxed-records optimization from kicking in when a record has all
+   "float-shaped" fields -- which would otherwise produce a representation
+   mismatch with the .mli where [usd] is abstract. *)
+type usd = U of float
+let usd_of_float x = U x
+let usd_to_float (U x) = x
+
+(* Arithmetic helpers so internal code can keep reading naturally. *)
+let[@warning "-32"] ( +@ ) (U a) (U b) = U (a +. b)
+let ( -@ ) (U a) (U b) = U (a -. b)
+let ( *@ ) k (U a) = U (k *. a)
+let ( <@ ) (U a) (U b) = a < b
+let ( <=@ ) (U a) (U b) = a <= b
 
 type account_status =
   | Active
@@ -67,12 +78,13 @@ let ftmo_max_pct : float = 0.10
 (* ----- State machine ----- *)
 
 let new_account ~account ~initial_capital =
+  let cap = usd_of_float initial_capital in
   {
     status = Active;
-    initial_capital = usd_of_float initial_capital;
-    midnight_balance = usd_of_float initial_capital;
-    equity = usd_of_float initial_capital;
-    highest_midnight_balance = usd_of_float initial_capital;
+    initial_capital = cap;
+    midnight_balance = cap;
+    equity = cap;
+    highest_midnight_balance = cap;
     account;
   }
 
@@ -80,20 +92,20 @@ let new_account ~account ~initial_capital =
 
     Computed as midnight_balance - daily_pct * initial_capital. *)
 let daily_loss_line (s : account_snapshot) : usd =
-  s.midnight_balance -. (ftmo_daily_pct s.account *. s.initial_capital)
+  s.midnight_balance -@ (ftmo_daily_pct s.account *@ s.initial_capital)
 
 (** Max loss line in absolute USD terms. Static for Challenge / Funded
     standard; trailing-up only for Funded Rewards (TODO in real impl). *)
 let max_loss_line (s : account_snapshot) : usd =
-  s.initial_capital -. (ftmo_max_pct *. s.initial_capital)
+  s.initial_capital -@ (ftmo_max_pct *@ s.initial_capital)
 
 (** Internal daily kill line. *)
 let internal_daily_line (s : account_snapshot) : usd =
-  s.midnight_balance -. (internal_daily_kill_pct s.account *. s.initial_capital)
+  s.midnight_balance -@ (internal_daily_kill_pct s.account *@ s.initial_capital)
 
 (** Internal max kill line. *)
 let internal_max_line (s : account_snapshot) : usd =
-  s.initial_capital -. (internal_max_kill_pct *. s.initial_capital)
+  s.initial_capital -@ (internal_max_kill_pct *@ s.initial_capital)
 
 (** [apply_tick] enforces the priority order: FTMO lines BEAT internal kill
     BEAT continued operation. Internal kill is a safety mechanism to PREVENT
@@ -112,16 +124,16 @@ let apply_tick (s : account_snapshot) (t : tick) : account_snapshot =
       let new_equity = t.equity in
       let s' = { s with equity = new_equity } in
       (* Priority: FTMO max > FTMO daily > internal max > internal daily *)
-      if new_equity <= max_loss_line s' then
+      if new_equity <=@ max_loss_line s' then
         { s' with status =
             Ftmo_failed { rule = "max_loss"; failed_at = t.unix_ts } }
-      else if new_equity <= daily_loss_line s' then
+      else if new_equity <=@ daily_loss_line s' then
         { s' with status =
             Ftmo_failed { rule = "daily_loss"; failed_at = t.unix_ts } }
-      else if new_equity <= internal_max_line s' then
+      else if new_equity <=@ internal_max_line s' then
         { s' with status =
             Internal_killed { reason = "internal_max"; killed_at = t.unix_ts } }
-      else if new_equity <= internal_daily_line s' then
+      else if new_equity <=@ internal_daily_line s' then
         { s' with status =
             Internal_killed { reason = "internal_daily"; killed_at = t.unix_ts } }
       else
@@ -131,15 +143,15 @@ let apply_tick (s : account_snapshot) (t : tick) : account_snapshot =
     line. PLACEHOLDER -- real impl in Phase 5. *)
 let check_pretrade (s : account_snapshot) (req : pretrade_request)
     : pretrade_decision =
-  let projected = req.current_equity -. req.worst_case_drawdown in
-  let imminent_buffer = 0.01 *. s.initial_capital in
-  if projected <= internal_max_line s then
+  let projected = req.current_equity -@ req.worst_case_drawdown in
+  let imminent_buffer = 0.01 *@ s.initial_capital in
+  if projected <=@ internal_max_line s then
     Deny "would breach internal max kill"
-  else if projected <= internal_daily_line s then
+  else if projected <=@ internal_daily_line s then
     Deny "would breach internal daily kill"
-  else if projected -. internal_max_line s < imminent_buffer then
+  else if (projected -@ internal_max_line s) <@ imminent_buffer then
     Imminent "within 1% of max-loss line"
-  else if projected -. internal_daily_line s < imminent_buffer then
+  else if (projected -@ internal_daily_line s) <@ imminent_buffer then
     Imminent "within 1% of daily-loss line"
   else
     Allow

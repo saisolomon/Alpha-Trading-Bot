@@ -20,6 +20,14 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic -Wconversion)
 endif()
 
+# When building with MinGW, statically link the GCC and stdc++ runtimes so
+# the resulting .dll / .pyd files don't depend on libgcc_s_seh-1.dll etc.
+# being on PATH at load time. Without this, importing the Python module from
+# the venv fails with "DLL load failed".
+if(MINGW)
+    add_link_options(-static -static-libgcc -static-libstdc++)
+endif()
+
 # ---------------------------------------------------------------------------
 # Core static library -- the math itself
 # ---------------------------------------------------------------------------

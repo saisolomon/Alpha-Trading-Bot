@@ -210,4 +210,6 @@ def test_next_midnight_is_always_in_future(dt: datetime) -> None:
 @settings(max_examples=500)
 def test_seconds_until_midnight_in_range(dt: datetime) -> None:
     secs = seconds_until_next_prague_midnight(dt)
-    assert 0 < secs <= 86401  # allow 1 extra second for DST edge
+    # Upper bound 25h: on DST fall-back day, the Prague day is 25 hours long,
+    # so at exact midnight the next midnight is 90000s away.
+    assert 0 < secs <= 90000

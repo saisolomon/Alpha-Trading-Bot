@@ -63,6 +63,52 @@ Format every entry with a date stamp `YYYY-MM-DD`. Append at the top of each sub
 
 ### Signal & Alpha Research
 
+### 2026-05-16 -- Multi-language stack built end-to-end; Markov regime gate rejected
+**Context:** Per user direction, scaffolded then BUILT the C++ libquant DLL, the OCaml libftmorisk DLL, and the MQL5 EA stub, then implemented and tested the Phase 1 Markov regime gate per Roan's article on observable Markov chains.
+
+**Toolchains installed (Windows):**
+  - CMake 4.3.2 (winget Kitware.CMake)
+  - **MSVC failed** -- VS 2022 BuildTools installed but C++ workload didn't activate ("Package not applicable: OS version 10.0.26200.0 outside supported range"). Windows 11 build 26200 is too new for VS 2022's compatibility checks. **Pivoted to MinGW UCRT (WinLibs)** which works fine and produces DLLs MQL5 can import.
+  - opam 2.5.0 (winget OCaml.opam) with OCaml 5.1.0 native + dune 3.23.0 + qcheck-core 0.91. `alcotest` install failed on Windows (path bug in ocamlbuild's example dir) -- worked around by using qcheck-core's built-in `Test.check_exn` runner directly.
+
+**C++ libquant (`cpp/libquant.dll` + `quantlib.cp311-win_amd64.pyd`):**
+  - Built with MinGW gcc 16.1.0, statically linked runtime so the .pyd loads cleanly into the venv (no libgcc_s_seh-1.dll dependency).
+  - Implements compute_atr / compute_ema / compute_log_returns / compute_rolling_zscore / markov_forward_step / markov_forward_n_steps.
+  - **19/19 parity tests pass** in tests/test_cpp_parity.py against the existing pure-Python implementations -- including REAL DATA tests on cached US500 12y D1 data (tight 1e-9 relative tolerance). The "research vs live drift" gate is armed.
+  - Bug found during parity testing: my initial rolling-zscore C++ impl returned a value if 2+ non-NaN samples were in the window. Pandas (correctly) returns NaN unless the window is fully populated. Fixed C++ to match -- critical because partial-window indicators would trade on stale stats in production.
+
+**OCaml libftmorisk:**
+  - Built with dune 3.23.0. Module structure: lib/ftmo_rules.{ml,mli} with the abstract `usd` type wrapped as a single-constructor variant `U of float` to prevent OCaml 5.x's unboxed-records optimisation from creating a representation mismatch across the .ml/.mli boundary.
+  - 3 qcheck property tests pass on thousands of generated tick sequences each: `failure_is_terminal`, `internal_lines_above_ftmo_lines`, `apply_tick_monotone_in_equity`.
+  - Currently a placeholder state machine. Phase 5 of the build plan will port the full `risk/ftmo.py` rule logic into the OCaml types.
+  - CLI demo (`dune exec bin/main.exe`) correctly fires `Internal_killed(internal_daily)` at the 3% drawdown threshold.
+
+**MQL5 EA scaffold:**
+  - `mql5/Experts/FTMOBot.mq5` with OnInit/OnDeinit/OnTick stubs and DLL imports declared in `mql5/Include/QuantLib.mqh` and `mql5/Include/FTMORisk.mqh`. Logs but does not trade -- Phase 6 wires up actual order management.
+
+**Phase 1 -- Markov regime gate (REJECTED):**
+  - Hypothesis: 3-state observable Markov chain (Bull/Bear/Sideways via formation-return thresholds) as a gate in front of Index MR. Specifically targeting the 2019-2020 OOS Sharpe of -0.52 where the strategy whipsawed long into a regime shift.
+  - Built with full walk-forward transition estimation, integration into MeanRevEngine via optional `regime_gate_factory`, libquant C++ forward step where available.
+  - 16 unit tests pass; gate logic and no-look-ahead verified.
+  - **Backtest result on 12y D1 across 9 walk-forward windows: the gate is strictly worse than baseline at every tested bear-threshold (0.20, 0.30, 0.50, 0.60, 0.70, 0.80, 0.95).**
+    - At thresholds <= 0.7: gate denies ~70% of trades, mean OOS Sharpe collapses 0.49 -> 0.09.
+    - At threshold 0.8: partial relaxation, Sharpe 0.49 -> 0.28 (still worse).
+    - At threshold 0.95: gate never fires -> identical to baseline (the inifrastructure works correctly; the signal just has no predictive value here).
+    - **The 2019-2020 worst OOS year (-0.58 baseline) is NEVER improved at any threshold** -- gets WORSE in most settings (-1.61 worst case).
+  - **Root cause:** the observable Markov state lags the actual regime change. By the time the rolling 20-day formation return crosses into "bear", the strategy has already entered the losing positions. The state label is measuring what just happened, not forecasting what's about to happen.
+  - **Drop the simple observable gate.** Per CLAUDE.md sec.10, parameter sensitivity is uniformly bad -> drop.
+  - **Don't drop the direction.** The HMM upgrade (Phase 2 of the original plan) with richer emission variables (returns + realized vol + cross-asset signals) is exactly what Roan's article ends pointing to as the better mechanism. The simple Markov was always meant as the on-ramp; the HMM is where the real signal would live if it exists at all on this universe.
+
+**Files added:**
+  - `ARCHITECTURE.md`, `cpp/` tree, `ocaml/` tree, `mql5/` tree (scaffolding)
+  - `tests/test_cpp_parity.py` (19 parity tests, all pass)
+  - `strategies/regime_markov/` with HYPOTHESIS.md + markov.py
+  - `tests/test_markov_regime.py` (16 tests)
+  - `scripts/run_meanrev_gated_backtest.py` (baseline-vs-gated comparison)
+  - Engine extended with optional `regime_gate_factory` (back-compatible)
+
+**Test suite: 359 passed, 0 failed** across the project.
+
 ### 2026-05-15 -- Search for second uncorrelated strategy -- four failed candidates
 **Goal:** Find a second strategy uncorrelated with Index MR to enable a portfolio book worthy of FTMO deployment (Index MR alone is too slow at 1.2% CAGR to pass Phase 1).
 

@@ -160,10 +160,21 @@ class MeanRevEngine:
         symbol_specs: dict[str, SymbolSpec],
         cost_model: CostModel = DEFAULT_COST_MODEL,
         per_trade_risk_pct: float = 0.005,
+        regime_gate_factory=None,
     ) -> None:
+        """
+        Parameters
+        ----------
+        regime_gate_factory : callable or None
+            Optional callable `(symbol, prices) -> gate_object`. The gate
+            must expose an `allow_entry(bar_i) -> bool` method. Built per-
+            symbol at the start of each `run()` call, then consulted before
+            each new long entry. None disables the gate (back-compat).
+        """
         self._specs = symbol_specs
         self._cost = cost_model
         self._per_trade_risk_pct = per_trade_risk_pct
+        self._regime_gate_factory = regime_gate_factory
 
     def run(
         self,
@@ -177,6 +188,13 @@ class MeanRevEngine:
             for sym in config.symbols
             if sym in data
         }
+
+        # Optional per-symbol regime gates. None unless a factory is supplied.
+        regime_gates: dict[str, object] = {}
+        if self._regime_gate_factory is not None:
+            for sym in config.symbols:
+                if sym in data:
+                    regime_gates[sym] = self._regime_gate_factory(sym, data[sym])
 
         # Use the symbol with the most bars as the master timeline
         master_sym = max(features, key=lambda s: len(data[s]))
@@ -352,6 +370,12 @@ class MeanRevEngine:
                 if snap.atr <= 0:
                     continue
 
+                # Regime gate (optional): deny entry if the regime model
+                # forecasts high probability of a bear next bar.
+                gate = regime_gates.get(sym)
+                if gate is not None and not gate.allow_entry(sym_idx):
+                    continue
+
                 next_bar = data[sym].iloc[sym_idx + 1]
                 next_ts = data[sym].index[sym_idx + 1]
                 spec = self._specs[sym]
@@ -448,13 +472,20 @@ def meanrev_walk_forward(
     is_months: int = 36,
     oos_months: int = 12,
     initial_capital: float = 100_000.0,
+    regime_gate_factory=None,
 ) -> list[MeanRevWFWindow]:
     """Rolling walk-forward; OOS windows do not overlap.
 
     No parameters are fitted on IS data -- the IS period only provides the
     rolling-z-score lookback history. OOS is the honest test.
+
+    If `regime_gate_factory` is supplied, each window's engine receives one;
+    the gate's internal state (e.g. rolling transition matrix) is
+    re-initialised per window so it sees ONLY the window's IS data.
     """
-    engine = MeanRevEngine(symbol_specs, cost_model, per_trade_risk_pct=per_trade_risk_pct)
+    engine = MeanRevEngine(symbol_specs, cost_model,
+                           per_trade_risk_pct=per_trade_risk_pct,
+                           regime_gate_factory=regime_gate_factory)
 
     master_sym = max(data, key=lambda s: len(data[s]))
     idx = data[master_sym].index

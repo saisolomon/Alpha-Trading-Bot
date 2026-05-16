@@ -26,7 +26,7 @@ let () =
 
   let _final = List.fold_left
     (fun s (i, eq) ->
-      let t = { unix_ts = float_of_int i; equity = usd_of_float eq } in
+      let t : tick = { unix_ts = float_of_int i; equity = usd_of_float eq } in
       let s' = apply_tick s t in
       Printf.printf "Tick %d: equity=%.2f status=%s\n"
         i eq (format_status s'.status);
