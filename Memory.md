@@ -63,6 +63,54 @@ Format every entry with a date stamp `YYYY-MM-DD`. Append at the top of each sub
 
 ### Signal & Alpha Research
 
+### 2026-05-16 -- Phases 2/3/5/6 of the Roan + multi-language plan -- end-to-end build
+
+**Context:** Continued from the multi-language scaffold (Markov gate rejected). Executed Phase 2 (HMM upgrade), Phase 3 (LSTM ensemble), Phase 5 (real OCaml rule engine port + Python parity), Phase 6 (MQL5 EA wiring + paper-trade plan).
+
+**Phase 2 -- HMM regime gate (KEEP):**
+  - `strategies/regime_markov/hmm.py` uses hmmlearn GaussianHMM trained on emission vector [log_return, realized_vol, cross_asset_signal]. Walk-forward refit every 63 bars; best-of-5 Baum-Welch random inits. 11 unit tests pass.
+  - 12y backtest result: Sharpe 0.38 -> **0.42**, Max DD -6.68% -> **-4.32%**, PF 1.34 -> **1.43**, mean OOS Sharpe 0.49 -> 0.52. All 9 OOS windows still FTMO PASS. Trade count drops 194 -> 157.
+  - Modest but real improvement on every risk-adjusted metric. UNLIKE the observable Markov (strictly worse), the HMM is strictly at-least-as-good.
+  - Limitation: 2019-2020 worst OOS year unchanged at -0.58 -- HMM's 504-bar warmup means it isn't fully trained in time for that window's onset.
+
+**Phase 3 -- LSTM directional ensemble (AMBIGUOUS, not standalone keeper):**
+  - `strategies/index_meanrev/lstm_signal.py` -- 2-layer LSTM, hidden=32, BCE classification on stationary features per Roan article 2. Walk-forward retrain. 13 unit tests pass.
+  - 12y backtest result: FULL PERIOD Sharpe 0.38 -> **0.51**, PF 1.34 -> **1.68**, win rate 55% -> **60%**, Max DD -6.68% -> -4.60%. Looks great.
+  - But walk-forward: mean OOS Sharpe 0.49 -> 0.47 (slightly worse), MEDIAN 0.36 -> **0.23** (materially worse), worst OOS -0.58 -> -0.76 (worse).
+  - Classic LSTM-on-finance: in-sample edge that doesn't transfer cleanly OOS. Likely cause: ~1500 training samples per walk-forward window is too few for an LSTM with even our small (32-hidden, 2-layer) architecture.
+  - Per CLAUDE.md (walk-forward is the truth), LSTM is NOT a standalone keeper as configured. Infrastructure kept for later experimentation with more data / smaller model / stacked with HMM.
+
+**Phase 5 -- OCaml rule engine production port (PASS):**
+  - `ocaml/lib/ftmo_rules.{ml,mli}` rewritten from placeholder to faithful port of `risk/ftmo.py`. All six account types, all derived limits (FTMO daily, FTMO max, internal daily, internal max), full headroom_check with Best Day governor, daily_reset rolling Best Day correctly, equity tick with priority FTMO > Internal > Imminent > Active.
+  - `ocaml/lib/c_stubs.ml` -- handle-based C ABI registered via `Callback.register`. Account opaque handle, integer status codes, integer decision codes (matches the MQL5 .mqh constants exactly).
+  - **7 qcheck property tests pass on thousands of generated tick sequences each:**
+    1. `failure_is_terminal` -- Ftmo_failed never reverts
+    2. `internal_kill_is_terminal` -- Internal_killed never reverts
+    3. `internal_lines_at_or_above_ftmo_lines` -- safety margin invariant
+    4. `apply_tick_monotone_in_equity` -- smaller equity => at-least-as-severe
+    5. `headroom_denies_bad_orders` -- orders breaching internal kill always denied
+    6. `headroom_allows_safe_orders` -- tiny orders always allowed
+    7. `daily_reset_best_day_correct` -- Best Day sum rolls iff today_pnl > 0
+  - `risk/ftmo_ocaml_bridge.py` + `tests/test_ocaml_python_parity.py` -- 4 parametrized scenarios verify Python `equity_tick` and OCaml `apply_tick` produce IDENTICAL status codes tick-for-tick across: gentle drawdown, 2-step internal kill, 1-step internal kill at 2%, profitable session. All 4 pass.
+  - CLI demo (`dune exec bin/main.exe`) correctly fires Internal_killed at the 3% threshold AND headroom check denies the obviously-large order.
+
+**Phase 6 -- MQL5 EA wiring + paper-trade plan (READY but not deployed):**
+  - `mql5/Experts/FTMOBot.mq5` rewritten from stub to a thin orchestrator (~250 LoC):
+    - OnInit allocates the OCaml FTMO state handle (`ftmo_new_account`)
+    - OnTick polls account equity, calls `ftmo_apply_tick` per tick (sub-second monitoring), flattens+halts on status >= 2 (Internal_killed or Ftmo_failed)
+    - At bar close: calls `quant_atr` + `quant_rolling_zscore` from libquant (single source of truth with backtest), checks `ftmo_check_pretrade` from libftmorisk before any OrderSend
+    - Position management: stops/TPs on the broker via SL/TP fields; time-stop and exit-z managed in OnTick; OnTradeTransaction detects broker-side closes
+    - `InpDryRun = true` by default -- logs the orders it would send without sending
+  - `mql5/PAPER_TRADE_PLAN.md` -- 4-week protocol per CLAUDE.md sec.10. Specifies setup, daily protocol, weekly review metrics, and pass/fail criteria. CRITICAL: validates INFRASTRUCTURE, not strategy profitability. The strategy's expected CAGR is 1.2% -- paper-trading 4 weeks isn't long enough to measure profitability significantly; it's there to catch operational/sizing/pricing bugs.
+
+**Test suite: 387 passed, 0 failed.** Up from 359 (+11 HMM, +13 LSTM, +4 OCaml-Python parity, +7 OCaml properties replacing 3 placeholder ones).
+
+**What "ready" means now:**
+  - Infrastructure: complete end-to-end (Python research, C++ math, OCaml rules, MQL5 EA, ONNX-ready).
+  - Drift detection: 19 C++ parity tests + 4 Python<->OCaml parity tests guarantee research/live consistency.
+  - Strategy: HMM-gated Index MR -- modest Sharpe ~0.5 OOS, FTMO-clean. NOT fast enough to pass Phase 1 alone (~8 years to 10% at 0.5% risk).
+  - Honest deployment path: paper-trade per the plan, validate infra, THEN find a second uncorrelated alpha (the structural gap Memory.md 2026-05-15 identified) before purchasing a Challenge.
+
 ### 2026-05-16 -- Multi-language stack built end-to-end; Markov regime gate rejected
 **Context:** Per user direction, scaffolded then BUILT the C++ libquant DLL, the OCaml libftmorisk DLL, and the MQL5 EA stub, then implemented and tested the Phase 1 Markov regime gate per Roan's article on observable Markov chains.
 
