@@ -150,6 +150,69 @@ def test_rolling_zscore_matches_python(lookback):
 
 
 # ---------------------------------------------------------------------------
+# Rolling OLS parity (used by the gold-silver pairs strategy)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("lookback", [30, 100, 252, 504])
+def test_rolling_ols_matches_numpy_polyfit(lookback):
+    """Per-window beta and alpha from compute_rolling_ols must match
+    numpy.polyfit on the same window. Tolerance is tight (1e-9) because
+    OLS is closed-form and both implementations should be deterministic."""
+    rng = np.random.default_rng(42)
+    n = 800
+    x = rng.normal(0.0, 1.0, n)
+    # y depends on x with known beta=0.7, alpha=0.3, plus noise
+    y = 0.3 + 0.7 * x + rng.normal(0.0, 0.1, n)
+
+    beta_cpp, alpha_cpp = quantlib.compute_rolling_ols(x.tolist(), y.tolist(), lookback)
+    beta_cpp = np.array(beta_cpp)
+    alpha_cpp = np.array(alpha_cpp)
+
+    # Warmup positions should be NaN
+    assert np.all(np.isnan(beta_cpp[: lookback - 1])), "warmup not NaN"
+
+    # Spot-check 5 random valid bars against numpy.polyfit
+    rng2 = np.random.default_rng(7)
+    valid_idx = rng2.choice(range(lookback - 1, n), size=5, replace=False)
+    for i in valid_idx:
+        lo = i - lookback + 1
+        hi = i + 1
+        # polyfit returns [slope, intercept] for degree 1
+        np_beta, np_alpha = np.polyfit(x[lo:hi], y[lo:hi], 1)
+        assert beta_cpp[i] == pytest.approx(np_beta, rel=1e-9), (
+            f"bar {i}: C++ beta={beta_cpp[i]:.12g} vs numpy {np_beta:.12g}")
+        assert alpha_cpp[i] == pytest.approx(np_alpha, rel=1e-9), (
+            f"bar {i}: C++ alpha={alpha_cpp[i]:.12g} vs numpy {np_alpha:.12g}")
+
+
+def test_rolling_ols_real_metals_data():
+    """Sanity-check on real cached XAUUSD/XAGUSD: the running beta from
+    compute_rolling_ols should match what scripts/pairs_cointegration_test.py
+    computed (beta ~= 0.92 over the full sample)."""
+    from data.cache import ParquetCache
+    cache = ParquetCache()
+    end = pd.Timestamp.now(tz="UTC")
+    start = end - pd.Timedelta(days=365 * 12)
+    xau = cache.read("XAUUSD", 16408, start.to_pydatetime(), end.to_pydatetime())
+    xag = cache.read("XAGUSD", 16408, start.to_pydatetime(), end.to_pydatetime())
+    if xau is None or xag is None:
+        pytest.skip("XAUUSD/XAGUSD cache not available")
+    df = pd.concat({"a": np.log(xau["close"]), "b": np.log(xag["close"])},
+                   axis=1, join="inner").dropna()
+    # a = log(XAU), b = log(XAG). OLS y=a on x=b => beta ~= 0.92.
+    beta_cpp, alpha_cpp = quantlib.compute_rolling_ols(
+        df["b"].to_numpy().tolist(),
+        df["a"].to_numpy().tolist(),
+        504,
+    )
+    last_beta = beta_cpp[-1]
+    # Rolling 504-bar beta should be in a sensible range (~0.7-1.2 over
+    # any 2y window since XAU/XAG move together)
+    assert 0.5 < last_beta < 1.5, f"final 504-bar XAU-XAG beta={last_beta:.3f} out of range"
+
+
+# ---------------------------------------------------------------------------
 # Markov forward step
 # ---------------------------------------------------------------------------
 

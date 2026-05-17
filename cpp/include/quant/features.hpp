@@ -56,4 +56,25 @@ std::vector<double> compute_rolling_zscore(
     int lookback
 );
 
+// Rolling OLS regression y = beta * x + alpha over a sliding window.
+// At each bar i, fits the regression to the last `lookback` aligned values
+// of x and y (positions [i-lookback+1, i]). Outputs two parallel series:
+//   beta[i]  = cov(x,y) / var(x)  over the window ending at i
+//   alpha[i] = mean(y) - beta[i] * mean(x)
+// Warmup positions [0, lookback-2] are NaN. Inputs of unequal length throw.
+//
+// Used by the gold-silver pairs strategy to fit the cointegrating
+// relationship log(P_a) = beta * log(P_b) + alpha on rolling 504-bar
+// windows.
+struct RollingOlsResult {
+    std::vector<double> beta;
+    std::vector<double> alpha;
+};
+
+RollingOlsResult compute_rolling_ols(
+    const std::vector<double>& x,
+    const std::vector<double>& y,
+    int lookback
+);
+
 }  // namespace quant

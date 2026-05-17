@@ -38,6 +38,16 @@ PYBIND11_MODULE(quantlib, m) {
           py::arg("series"), py::arg("lookback"),
           "Rolling z-score with sample std (ddof=1) over a lookback window.");
 
+    m.def("compute_rolling_ols",
+          [](const std::vector<double>& x, const std::vector<double>& y,
+             int lookback) {
+              auto r = quant::compute_rolling_ols(x, y, lookback);
+              return std::make_pair(r.beta, r.alpha);
+          },
+          py::arg("x"), py::arg("y"), py::arg("lookback"),
+          "Rolling OLS y = beta*x + alpha over a sliding window. Returns "
+          "(beta_series, alpha_series), each warmup position NaN.");
+
     // -- Markov --
     m.def("markov_forward_step",
           &quant::markov_forward_step,

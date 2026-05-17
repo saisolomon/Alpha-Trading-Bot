@@ -163,4 +163,77 @@ std::vector<double> compute_rolling_zscore(
     return out;
 }
 
+RollingOlsResult compute_rolling_ols(
+    const std::vector<double>& x,
+    const std::vector<double>& y,
+    int lookback
+) {
+    require_equal_length(x, y, "compute_rolling_ols");
+    if (lookback <= 1) {
+        throw std::invalid_argument("compute_rolling_ols: lookback must be > 1");
+    }
+    const std::size_t n = x.size();
+    const std::size_t L = static_cast<std::size_t>(lookback);
+    RollingOlsResult out;
+    out.beta.assign(n, kNaN);
+    out.alpha.assign(n, kNaN);
+    if (n < L) return out;
+
+    // Running sums for O(n) rolling-window regression:
+    //   sx, sy, sxx, sxy where the window is [i-L+1, i]
+    //   beta  = (L*sxy - sx*sy) / (L*sxx - sx*sx)
+    //   alpha = (sy - beta*sx) / L
+    // This is the standard normal-equation OLS for a single feature.
+    double sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0;
+    std::size_t valid = 0;
+    for (std::size_t i = 0; i < L; ++i) {
+        if (!std::isnan(x[i]) && !std::isnan(y[i])) {
+            sx  += x[i];
+            sy  += y[i];
+            sxx += x[i] * x[i];
+            sxy += x[i] * y[i];
+            ++valid;
+        }
+    }
+
+    auto emit = [&](std::size_t i) {
+        if (valid < L) {
+            // Require a fully populated window (matches our pandas-style
+            // min_periods=lookback convention; partial windows -> NaN).
+            return;
+        }
+        const double n_v = static_cast<double>(valid);
+        const double denom = n_v * sxx - sx * sx;
+        if (denom == 0.0 || std::isnan(denom)) return;
+        const double beta_v = (n_v * sxy - sx * sy) / denom;
+        const double alpha_v = (sy - beta_v * sx) / n_v;
+        out.beta[i] = beta_v;
+        out.alpha[i] = alpha_v;
+    };
+
+    emit(L - 1);
+
+    for (std::size_t i = L; i < n; ++i) {
+        const double xleave = x[i - L], yleave = y[i - L];
+        const double xenter = x[i],     yenter = y[i];
+        if (!std::isnan(xleave) && !std::isnan(yleave)) {
+            sx  -= xleave;
+            sy  -= yleave;
+            sxx -= xleave * xleave;
+            sxy -= xleave * yleave;
+            --valid;
+        }
+        if (!std::isnan(xenter) && !std::isnan(yenter)) {
+            sx  += xenter;
+            sy  += yenter;
+            sxx += xenter * xenter;
+            sxy += xenter * yenter;
+            ++valid;
+        }
+        emit(i);
+    }
+
+    return out;
+}
+
 }  // namespace quant

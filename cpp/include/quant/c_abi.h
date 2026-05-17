@@ -63,6 +63,18 @@ QUANT_API QuantStatus QUANT_CALL quant_rolling_zscore(
     double* out
 );
 
+// Rolling OLS regression y = beta*x + alpha over a sliding window of length
+// `lookback`. Outputs two parallel series; warmup positions (first lookback-1)
+// are NaN.
+QUANT_API QuantStatus QUANT_CALL quant_rolling_ols(
+    const double* x,
+    const double* y,
+    int n,
+    int lookback,
+    double* out_beta,
+    double* out_alpha
+);
+
 // Markov forward step. transition is row-major n_states x n_states.
 // state and out are length n_states.
 QUANT_API QuantStatus QUANT_CALL quant_markov_forward(

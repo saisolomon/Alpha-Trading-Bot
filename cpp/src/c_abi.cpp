@@ -89,6 +89,26 @@ QuantStatus QUANT_CALL quant_rolling_zscore(
     }
 }
 
+QuantStatus QUANT_CALL quant_rolling_ols(
+    const double* x, const double* y, int n, int lookback,
+    double* out_beta, double* out_alpha
+) {
+    if (x == nullptr || y == nullptr || out_beta == nullptr || out_alpha == nullptr)
+        return QUANT_ERR_NULL_PTR;
+    if (n < 0 || lookback <= 1) return QUANT_ERR_INVALID_ARG;
+    std::vector<double> xv, yv;
+    if (!to_vec(x, n, &xv) || !to_vec(y, n, &yv))
+        return QUANT_ERR_INVALID_ARG;
+    try {
+        auto r = quant::compute_rolling_ols(xv, yv, lookback);
+        QuantStatus s1 = from_vec(r.beta, out_beta, n);
+        if (s1 != QUANT_OK) return s1;
+        return from_vec(r.alpha, out_alpha, n);
+    } catch (...) {
+        return QUANT_ERR_INTERNAL;
+    }
+}
+
 QuantStatus QUANT_CALL quant_markov_forward(
     const double* state, const double* transition, int n_states, double* out
 ) {

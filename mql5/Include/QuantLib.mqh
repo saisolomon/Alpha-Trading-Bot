@@ -33,6 +33,12 @@
    int     quant_rolling_zscore(const double &series[], int n, int lookback,
                                  double &out[]);
 
+   // Rolling OLS y = beta*x + alpha over a sliding window. Outputs
+   // out_beta + out_alpha each of length n; warmup positions are NaN.
+   int     quant_rolling_ols(const double &x[], const double &y[],
+                              int n, int lookback,
+                              double &out_beta[], double &out_alpha[]);
+
    // Markov chain forward step. transition is row-major n_states x n_states.
    int     quant_markov_forward(const double &state[], const double &transition[],
                                  int n_states, double &out[]);
