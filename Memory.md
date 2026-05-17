@@ -63,6 +63,66 @@ Format every entry with a date stamp `YYYY-MM-DD`. Append at the top of each sub
 
 ### Signal & Alpha Research
 
+### 2026-05-17 -- Third-alpha hunt: FX carry + TotM both rejected. Alpha-hunt exhausted on this universe.
+
+**Context:** Continued from 9dbbad1 (2-leg portfolio Sharpe 0.51). Goal: find a 3rd uncorrelated alpha to lift portfolio Sharpe further. Also stood up the Windows-Task-Scheduler fallback for the paper-trade routine since /schedule remained offline.
+
+**Local infra (B):**
+  - `scripts/setup_windows_tasks.ps1` -- one-shot elevated-PowerShell script that registers all four Windows tasks (Monitor at logon, hourly push, daily review at 23:30, weekly Sunday review at 23:30). `remove_windows_tasks.ps1` for cleanup.
+  - Pushed everything to GitHub: https://github.com/saisolomon/Alpha-Trading-Bot
+
+**Third-alpha attempts (C):**
+
+  **FX carry -- REJECTED.**
+    `scripts/probe_fx_swap_rates.py` pulled current broker swap rates: AUD +6.30/lot/day (~+3.2% ann), NZD +2.80 (~+1.4%), EUR -0.70 (most negative -- short EUR favoured).
+    `strategies/fx_carry/HYPOTHESIS.md` written with full mechanism (UIP failure, Lustig-Verdelhan / Brunnermeier-Nagel-Pedersen / Menkhoff et al), vol-regime-filter design.
+    Bucket test on 12y data: long top-2 (AUD/NZD), short bottom-2 (CAD/EUR), 20d fwd return:
+      - Carry portfolio Sharpe **-1.49**, t-stat **-3.34** (statistically significant NEGATIVE)
+      - vs long-only basket: +0.14 Sharpe, +0.08% ann
+      - Vol-regime sub-test on AUDUSD: noisy, calmest quintile fwd +0.38% vs most-volatile -0.12% -- some structure but not enough to rescue
+    The post-2014 regime is HOSTILE to traditional carry: USD strength + commodity weakness made the long AUD/NZD vs short EUR/CAD trade lose ~3% ann. Consistent with academic literature showing carry premium compressed/reversed post-GFC. REJECT.
+
+  **Turn-of-the-Month (Lakonishok-Smidt 1988) -- REJECTED.**
+    `scripts/tom_calendar_test.py` bucket test on 12y for US500/USTEC/US30/DE40:
+      - Cross-universe avg TotM-vs-mid-month spread: **-1.86 bp/day** (NEGATIVE -- opposite of literature prediction)
+      - Avg t-stat: **-0.37** (zero)
+      - Per-symbol: US500 -1.49bp t=-0.31, US30 -1.21bp t=-0.26, DE40 -5.11bp t=-0.93, USTEC +0.36bp t=+0.03
+    No TotM premium on this sample. The post-2010 retreat of this effect is also documented (McConnell-Xu 2008 found weakening; post-2020 ETF-flow dynamics may have arbitraged it away). REJECT.
+
+**Alpha-hunt scorecard (across the project):**
+  - **REJECTED (6):** Index TSMOM, Metals TSMOM, Metals MR, FX MR (weak), FX carry, TotM
+  - **KEPT (2):** Index MR (HMM-gated, Sharpe 0.48), Gold-Silver Pairs (Sharpe 0.22)
+  - Hit rate: 2/8 = 25%, realistic for alpha research per CLAUDE.md sec.9.
+
+**Pattern that emerges across rejections:**
+  The post-2014 regime on FTMO-accessible D1 markets is **uniformly hostile to traditional momentum and carry anomalies**, and modestly receptive to mean-reversion (both intra-asset like Index MR and inter-asset like the cointegration pair). Possible structural reasons:
+  - ETF/index-fund growth has reduced cross-sectional dispersion (kills cross-sectional momentum)
+  - Central-bank zero-rate convergence killed FX rate dispersion (killed carry)
+  - 0DTE option flows and algorithmic vol targeting reinforce mean-reversion at the daily-bar level
+  - Calendar anomalies got arbitraged out by quant funds in the 2010s
+  These are not testable claims here -- they're consistent with the rejections.
+
+**Honest conclusion:**
+  The "obvious" alpha candidates are exhausted on this universe/timeframe. To find a third leg, the next-marginal effort would need either:
+    a. **Different timeframe**: M5/M15 microstructure signals (gamma exhaustion, intraday vol carry). Requires tick-level data infrastructure we don't have.
+    b. **Alternative data**: sentiment, news, positioning (CFTC COT reports for FX, ETF flows for indices). Significant data-pipeline build.
+    c. **ML on richer feature sets**: LSTM already attempted (ambiguous); would need to materially expand feature universe (cross-asset, macro, microstructure).
+    d. **Options-based vol strategies**: short put-write on indices, vol carry. Requires options chain data and an MT5 broker that lists CFD options (FTMO does not).
+  Each is weeks-to-months of additional infrastructure for an uncertain payoff. The honest move is to STOP THE ALPHA HUNT and deploy what works.
+
+**What deploying-what-works means:**
+  - 2-leg portfolio (Index MR + Gold-Silver Pairs), equal-weight, Sharpe 0.51, MaxDD 2.35%.
+  - At 2x sizing (1% per-trade): projected MaxDD ~5%, CAGR ~1.4%, FTMO Phase 1 in ~7 years on average.
+  - At 3x sizing (1.5% per-trade): projected MaxDD ~7%, CAGR ~2.2%, FTMO Phase 1 in ~5 years.
+  - 4-week paper-trade run via the cloud (or Windows fallback) validates the infra.
+  - First $25K 2-Step Challenge purchase decision happens AFTER paper-trade PASS.
+
+**Files added this session:**
+  - `scripts/setup_windows_tasks.ps1`, `scripts/remove_windows_tasks.ps1`
+  - `scripts/probe_fx_swap_rates.py`, `scripts/fx_carry_bucket_test.py`
+  - `scripts/tom_calendar_test.py`
+  - `strategies/fx_carry/{__init__.py, HYPOTHESIS.md}`
+
 ### 2026-05-16 -- Steps 1/2/3 of post-build deployment: paper-trade infra + 2nd alpha + portfolio combiner
 
 **Context:** Continued from 35fd93c (all four Roan phases done). Goal: build the operational infra needed to actually deploy, find a true second alpha leg, then prove portfolio combination lifts Sharpe.
