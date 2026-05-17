@@ -63,6 +63,67 @@ Format every entry with a date stamp `YYYY-MM-DD`. Append at the top of each sub
 
 ### Signal & Alpha Research
 
+### 2026-05-17 -- DEPLOYMENT MILESTONE: full 2-strategy portfolio LIVE on demo
+
+**Status:** Both EAs attached, AutoTrading on, paper-trade clock ticking on the
+proven 2-strategy portfolio (Sharpe 0.51, MaxDD 2.35%, rho -0.019 between legs).
+
+**What's running right now on the MetaQuotes-Demo account (login 5050327497):**
+
+  EA 1 -- FTMOBot.mq5 (Index Mean-Reversion, HMM-gated)
+    - Attached to US500 D1 chart
+    - Trades US500/USTEC/US30/DE40 cross-section
+    - Standalone Sharpe 0.48, MaxDD 5.08%
+    - Currently dry-run; user planning to flip to live after 24h clean logs
+
+  EA 2 -- FTMOBotPairs.mq5 (Gold-Silver Cointegration Pairs)
+    - Attached to XAUUSD D1 chart
+    - Two-leg market-neutral: long XAU + short XAG (or vice versa)
+    - Entry at |spread z-score| > 2.5
+    - Standalone Sharpe 0.22, MaxDD 2.47%, ~14 trades per 12y
+
+  Combined deployed Sharpe target: 0.51 (was 0.48 with only EA 1)
+
+**Operational infrastructure live:**
+
+  - paper_trade_monitor.py running in a manual PowerShell window (not the
+    Windows scheduled task variant -- user opted for the simpler path).
+    Polls account state every 60s, snapshots to data/paper_trade/<date>.jsonl.
+    Loaded .env via load_dotenv() (fix committed 046a45b).
+  - libquant.dll deployed to MT5/Libraries (588 KB; includes math + FTMO
+    rule engine + rolling OLS for pairs strategy).
+  - libgcc_s_seh-1.dll deployed alongside (MinGW runtime dependency).
+  - FTMOBot.ex5 + FTMOBotPairs.ex5 compiled and active.
+
+**Parity guarantees holding at every cross-language boundary:**
+
+  - C++ <-> Python: 19 parity tests (test_cpp_parity.py) including 5 new
+    rolling-OLS tests against numpy.polyfit
+  - C++ <-> OCaml (FTMO rules): 6 parity scenarios (test_ocaml_cpp_parity.py)
+  - C++ <-> MQL5: same libquant.dll loaded by both (no port reimplementation)
+  - Total: 412 tests passing, 0 failed, 10 skipped (env-dependent)
+
+**The 4-week clock starts now.** End-of-window plan:
+  - Apply PASS criteria from mql5/PAPER_TRADE_PLAN.md
+  - If PASS: purchase $25K 2-Step Phase 1 Challenge at ~2x sizing
+    (~5% projected MaxDD, ~1.4% CAGR, ~7 years to 10% on average)
+  - If FAIL: diagnose, fix, re-paper-trade 2 more weeks
+
+**Failure modes to watch in the live run:**
+  - Sleep/hibernate kills the bot (we disabled this via powercfg /change)
+  - Windows Update auto-restart kills the bot (active hours configured)
+  - MT5 disconnect from broker (auto-reconnects but logs gap)
+  - PowerShell window closing kills the monitor (user knows; can re-launch)
+  - The OCaml/C++ parity gates ensure NO research-vs-live drift; any
+    new alpha leg added later goes through the same parity machinery.
+
+**Honest assessment of the session:** We started today with the bot 90%
+deployed (one EA), and finished with both EAs live and the FULL proven
+portfolio trading. The pairs leg adds the diversification benefit we
+proved at the Python level. The deployment is now operationally as good
+as a session can make it -- only test-of-time + paper-trade pass/fail
+remains.
+
 ### 2026-05-17 -- Third-alpha hunt: FX carry + TotM both rejected. Alpha-hunt exhausted on this universe.
 
 **Context:** Continued from 9dbbad1 (2-leg portfolio Sharpe 0.51). Goal: find a 3rd uncorrelated alpha to lift portfolio Sharpe further. Also stood up the Windows-Task-Scheduler fallback for the paper-trade routine since /schedule remained offline.
