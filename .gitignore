@@ -53,7 +53,14 @@ logs/
 data/cache/
 data/*.parquet
 data/*.csv
+# Reports: gitignored by default, EXCEPT the paper-trade run reports the
+# cloud routine commits (so the human reviewer can audit the 4-week run
+# end-to-end from git history).
 reports/
+!reports/paper_trade/
+# Paper-trade JSONL snapshots MUST be committed -- the local monitor
+# pushes them hourly and the cloud routine pulls them for review. Do
+# NOT gitignore data/paper_trade/.
 
 # IDE
 .vscode/
