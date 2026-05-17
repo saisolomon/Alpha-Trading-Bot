@@ -33,6 +33,7 @@ endif()
 # ---------------------------------------------------------------------------
 add_library(quant_core STATIC
     src/features.cpp
+    src/ftmo_rules.cpp
     src/markov.cpp
     src/version.cpp
 )

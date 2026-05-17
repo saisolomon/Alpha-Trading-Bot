@@ -183,10 +183,12 @@ bool SendLongEntry(const double lots, const double stop_price, const double tp_p
                   lots, _Symbol, stop_price, tp_price);
       return true;
    }
-   MqlTradeRequest req;
-   MqlTradeResult  res;
+   MqlTradeRequest      req;
+   MqlTradeResult       res;
+   MqlTradeCheckResult  chk;
    ZeroMemory(req);
    ZeroMemory(res);
+   ZeroMemory(chk);
    req.action       = TRADE_ACTION_DEAL;
    req.symbol       = _Symbol;
    req.volume       = lots;
@@ -198,9 +200,10 @@ bool SendLongEntry(const double lots, const double stop_price, const double tp_p
    req.type_filling = ORDER_FILLING_IOC;
    req.comment      = "FTMOBot meanrev";
 
-   if(!OrderCheck(req, res) || res.retcode != 0) {
+   // OrderCheck takes a *Check* result, NOT MqlTradeResult.
+   if(!OrderCheck(req, chk) || chk.retcode != 0) {
       PrintFormat("[FTMOBot] OrderCheck rejected: retcode=%d comment=%s",
-                  res.retcode, res.comment);
+                  chk.retcode, chk.comment);
       return false;
    }
    if(!OrderSend(req, res)) {

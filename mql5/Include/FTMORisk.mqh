@@ -21,11 +21,14 @@
 #define FTMO_ACCT_FUNDED_SWING           4
 #define FTMO_ACCT_FUNDED_REWARDS_1STEP   5
 
-// PLACEHOLDER: these are the function signatures Phase 5 will implement.
-// The actual symbol names will be exported by the OCaml `Ctypes.foreign`
-// stubs in ../ocaml/lib/c_stubs.ml.
+// The FTMO rule engine ships as part of libquant.dll (cpp/build/).
+// Originally planned as a separate libftmorisk.dll built from the OCaml
+// state machine, but the Windows OCaml-shared-lib + flexdll path has a
+// known DLL-init issue (see Memory.md). The C++ port in cpp/src/ftmo_rules.cpp
+// is mechanically verified against the OCaml spec via
+// tests/test_ocaml_cpp_parity.py.
 
-#import "libftmorisk.dll"
+#import "libquant.dll"
    // Initialise an account snapshot. Returns an opaque handle (long).
    long    ftmo_new_account(int account_type, double initial_capital);
 

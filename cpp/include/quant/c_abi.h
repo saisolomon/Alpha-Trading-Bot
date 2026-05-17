@@ -81,6 +81,31 @@ QUANT_API QuantStatus QUANT_CALL quant_markov_forward_n(
     double* out
 );
 
+// ---------------------------------------------------------------------- //
+// FTMO rule engine exports (mirrors ocaml/lib/c_stubs.ml; see              //
+// cpp/src/ftmo_rules.cpp for the C++ port).                                //
+// Handle-based: ftmo_new_account returns an opaque integer handle that     //
+// must be released via ftmo_free_account when done.                        //
+// Account-type codes (must match mql5/Include/FTMORisk.mqh):               //
+//   0 = CHALLENGE_1STEP                                                    //
+//   1 = CHALLENGE_2STEP_PHASE1                                             //
+//   2 = CHALLENGE_2STEP_PHASE2                                             //
+//   3 = FUNDED_STANDARD                                                    //
+//   4 = FUNDED_SWING                                                       //
+//   5 = FUNDED_REWARDS_1STEP                                               //
+// Status-code returns from ftmo_apply_tick / ftmo_status:                  //
+//   0 = ACTIVE, 1 = IMMINENT, 2 = INTERNAL_KILLED, 3 = FTMO_FAILED         //
+// Decision-code returns from ftmo_check_pretrade:                          //
+//   0 = ALLOW, 1 = DENY, 2 = IMMINENT (proceed at reduced size)            //
+// ---------------------------------------------------------------------- //
+
+QUANT_API long QUANT_CALL ftmo_new_account(int account_code, double initial_capital);
+QUANT_API void QUANT_CALL ftmo_free_account(long handle);
+QUANT_API int  QUANT_CALL ftmo_apply_tick(long handle, double unix_ts, double equity);
+QUANT_API int  QUANT_CALL ftmo_check_pretrade(long handle, double equity, double worst_case_loss);
+QUANT_API int  QUANT_CALL ftmo_daily_reset(long handle, double unix_ts, double balance);
+QUANT_API int  QUANT_CALL ftmo_status(long handle);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif
