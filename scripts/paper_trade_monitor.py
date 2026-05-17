@@ -31,6 +31,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# Load MT5_LOGIN / MT5_PASSWORD / MT5_SERVER from .env at the repo root.
+# Without this, MT5Config() fails validation when run as a standalone script.
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
 UTC = timezone.utc
 
 
