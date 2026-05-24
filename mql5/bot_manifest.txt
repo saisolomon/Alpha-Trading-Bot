@@ -1,0 +1,25 @@
+# bot_manifest.txt — read by BotOrchestrator.mq5
+#
+# One EA name per line (no .mq5 / .ex5 extension). Lines starting with
+# # are comments. Blank lines are ignored.
+#
+# The orchestrator polls every 60s. For each EA listed here:
+#   1. Derives the primary chart symbol from the EA filename
+#      (first underscore-delimited token per CLAUDE.md §8 convention)
+#   2. Ensures a D1 chart for that symbol exists
+#   3. Ensures the EA is attached to it via ChartApplyTemplate
+#   4. Auto-saves a template the first time it sees the EA running
+#      (so the next removal can be auto-recovered)
+#
+# To add a new EA: append the EA name on a new line, refresh MT5's
+# Navigator (Ctrl+N → right-click → Refresh), and the orchestrator
+# will pick it up within 60s.
+#
+# This file lives at MQL5/Files/bot_manifest.txt in your MT5 install.
+# The copy in repo/mql5/ is the source of truth and gets copied to the
+# MT5 location by scripts/deploy_mt5_files.ps1 (or manually).
+
+US500_MeanRev
+XAUUSD_XAGUSD_Pairs
+AUDJPY_CHFJPY_Carry
+USDMXN_USDZAR_Carry

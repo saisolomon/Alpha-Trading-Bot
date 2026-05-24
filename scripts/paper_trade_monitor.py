@@ -117,6 +117,12 @@ def main() -> None:
         FTMOAccountType, new_state, equity_tick,
         FTMOInternalBreach, FTMOImminent, daily_reset,
     )
+    from utils.convex_client import ConvexClient
+    convex = ConvexClient.from_env()  # None if env vars missing; safe
+    # Track the highest deal ticket we've sent to Convex so we only
+    # fetch+post NEW fills each poll cycle. Seeded from Convex itself
+    # at startup so a monitor restart doesn't re-send the whole history.
+    deal_high_water = 0
     from utils.timeutils import prague_midnight_of
 
     cfg = MT5Config()
@@ -142,6 +148,11 @@ def main() -> None:
         current_log_date = out_path.stem
         last_prague_midnight = prague_midnight_of(datetime.now(UTC))
         snapshots = 0
+
+        # Seed deal_high_water from Convex so we don't replay history
+        if convex is not None:
+            deal_high_water = convex.get_latest_deal_ticket(int(cfg.login))
+            print(f"[monitor] Convex deal-sync seeded at ticket={deal_high_water}", flush=True)
 
         while not stop_flag[0]:
             # Roll log file at UTC midnight (cheap proxy for "new day")
@@ -192,9 +203,109 @@ def main() -> None:
             fh.flush()
             snapshots += 1
 
+            # Parallel POST to Convex (fire-and-forget; failures logged
+            # but don't crash the monitor — JSONL on disk is the canonical
+            # record). Heartbeat goes every poll; snapshot too. The
+            # heartbeat exists separately so the staleness detector can
+            # alarm even if snapshot inserts fail.
+            if convex is not None:
+                ftmo_status_code = 0
+                if risk_status.startswith("imminent_"):
+                    ftmo_status_code = 1
+                elif risk_status.startswith("internal_killed"):
+                    ftmo_status_code = 2
+
+                # Normalize positions to the Convex schema's shape
+                cnv_positions = []
+                for p in snap["open_positions"]:
+                    if "error" in p:
+                        continue
+                    cnv_positions.append({
+                        "ticket": p["ticket"],
+                        "symbol": p["symbol"],
+                        "side": "BUY" if p["type"] == 0 else "SELL",
+                        "volume": p["volume"],
+                        "priceOpen": p["price_open"],
+                        "priceCurrent": p["price_current"],
+                        "profit": p["profit"],
+                        "swap": p["swap"],
+                    })
+
+                convex.post_heartbeat(
+                    broker_login=int(cfg.login),
+                    broker_server=cfg.server,
+                    account_type=acct_type.value,
+                    initial_capital=initial,
+                    currency="USD",
+                    monitor_version="paper_trade_monitor-0.2-convex",
+                    mt_connected=True,
+                )
+                convex.post_snapshot(
+                    broker_login=int(cfg.login),
+                    broker_server=cfg.server,
+                    account_type=acct_type.value,
+                    initial_capital=initial,
+                    currency="USD",
+                    balance=snap["balance"],
+                    equity=snap["equity"],
+                    profit=snap["profit"],
+                    margin_used=snap["margin"],
+                    margin_free=snap["margin_free"],
+                    daily_limit_distance=risk_distance["to_ftmo_daily"],
+                    max_limit_distance=risk_distance["to_ftmo_max"],
+                    ftmo_status=ftmo_status_code,
+                    carry_today=sum(p.get("swap", 0) for p in snap["open_positions"]
+                                     if isinstance(p.get("swap"), (int, float))),
+                    positions=cnv_positions,
+                )
+
+                # ---- Sync NEW deals (closed fills) to Convex ----
+                # MT5 history_deals_get returns ALL deals since the date
+                # we pass. We re-fetch from the last 24h every poll and
+                # let the backend dedupe by ticket (cheap, idempotent).
+                try:
+                    import MetaTrader5 as mt5
+                    from datetime import timedelta as _td
+                    since = datetime.now(UTC) - _td(days=2)
+                    raw_deals = mt5.history_deals_get(since, datetime.now(UTC)) or ()
+                    new_deals = []
+                    for d in raw_deals:
+                        if int(d.ticket) <= deal_high_water:
+                            continue
+                        # entry: 0=IN, 1=OUT, 2=INOUT, 3=OUT_BY
+                        entry_map = {0: "IN", 1: "OUT", 2: "INOUT", 3: "OUT_BY"}
+                        new_deals.append({
+                            "ticket": int(d.ticket),
+                            "positionId": int(d.position_id) if d.position_id else None,
+                            "symbol": d.symbol,
+                            "side": "BUY" if d.type == 0 else "SELL",
+                            "entry": entry_map.get(int(d.entry), "IN"),
+                            "volume": float(d.volume),
+                            "price": float(d.price),
+                            "profit": float(d.profit),
+                            "swap": float(d.swap),
+                            "commission": float(d.commission),
+                            "dealTimeMs": int(d.time) * 1000,
+                            "eaName": d.comment or None,
+                        })
+                    if new_deals:
+                        r = convex.post_deals(
+                            broker_login=int(cfg.login),
+                            deals=new_deals,
+                        )
+                        max_new_ticket = max(int(x["ticket"]) for x in new_deals)
+                        if max_new_ticket > deal_high_water:
+                            deal_high_water = max_new_ticket
+                        print(f"[monitor] posted {len(new_deals)} deals to Convex "
+                              f"(inserted={r.get('inserted') if r else '?'}, "
+                              f"high_water={deal_high_water})", flush=True)
+                except Exception as exc:
+                    print(f"[monitor] deal sync failed: {exc}", flush=True)
+
             if snapshots % 30 == 0:
                 print(f"[monitor] {snapshots} snapshots  "
-                      f"equity={snap['equity']:.2f}  status={risk_status}", flush=True)
+                      f"equity={snap['equity']:.2f}  status={risk_status}"
+                      f"  convex={'on' if convex else 'off'}", flush=True)
 
             if args.max_snapshots and snapshots >= args.max_snapshots:
                 print(f"[monitor] reached max_snapshots={args.max_snapshots}", flush=True)

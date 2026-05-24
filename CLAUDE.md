@@ -234,6 +234,24 @@ A strategy missing any of these seven pieces is incomplete, regardless of backte
 - Configs are YAML, loaded via `pydantic` models. No hardcoded paths or credentials.
 - Secrets via `.env` + `python-dotenv`. `.env` is gitignored. `.env.example` is committed.
 
+### EA Naming Convention (MQL5 Experts)
+
+**All EAs in `mql5/Experts/` use asset-first names so it's obvious from the filename alone what symbols the EA actually trades on the broker.** Decided 2026-05-24 after the original `FTMOBot*` prefixed names became ambiguous (the prefix conveyed no information about the underlying assets, making it easy to attach the wrong EA to the wrong chart or get confused in the Experts-tab logs when multiple are running).
+
+**Format:** `<ASSETS>_<Strategy>.mq5`
+
+- **Single-symbol EA:** `<SYMBOL>_<Strategy>.mq5` → `US500_MeanRev.mq5`
+- **Two-leg / pair EA:** `<SYMBOL1>_<SYMBOL2>_<Strategy>.mq5` → `XAUUSD_XAGUSD_Pairs.mq5`, `AUDJPY_CHFJPY_Carry.mq5`, `USDMXN_USDZAR_Carry.mq5`
+- **3+ symbol basket:** `<BasketName>_<Strategy>.mq5` (e.g. `JPYCrosses_Carry.mq5`)
+
+**Internal references must match:**
+
+- Log prefix: `[<ea_name>]` (e.g. `[AUDJPY_CHFJPY_Carry]`)
+- MT5 order `comment` field: the EA name (e.g. `req.comment = "AUDJPY_CHFJPY_Carry";`). The comment shows up in MT5's trade history, so it must identify the EA unambiguously. Keep under 31 chars (broker limit).
+- File-header comment block: lead line includes the new filename.
+
+**When renaming an existing EA**, all four locations must be updated atomically AND the old `.mq5`/`.ex5` files must be removed from both the repo and the MT5 Experts dir, otherwise users may accidentally attach the stale version.
+
 ### Testing
 - Unit tests for every signal function, risk gate, and execution helper.
 - Integration tests for the full backtest pipeline on a frozen sample dataset.

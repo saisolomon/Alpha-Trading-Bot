@@ -1,13 +1,13 @@
 # Gold-Silver Pairs EA -- Deployment Handoff
 
 The second alpha leg (gold-silver cointegration pairs) is now built and
-compiled. Adding it to your live MT5 alongside the existing FTMOBot
+compiled. Adding it to your live MT5 alongside the existing US500_MeanRev
 takes ~5 minutes and requires one MT5 restart so the new libquant.dll
 can replace the one currently loaded.
 
 ## Why a restart is needed
 
-The running FTMOBot has `libquant.dll` loaded in-memory and Windows
+The running US500_MeanRev has `libquant.dll` loaded in-memory and Windows
 won't let us overwrite the file while it's locked. The new
 `libquant.dll` has all the old exports PLUS `quant_rolling_ols` (the
 new function the pairs EA needs). Without the new DLL the pairs EA will
@@ -18,11 +18,11 @@ fail at runtime with "function not found".
 ### Step 1: clean stop the current bot (~30 sec)
 
 In MT5:
-- **Right-click the chart** that has FTMOBot attached
+- **Right-click the chart** that has US500_MeanRev attached
 - **Expert Advisors → Remove**
 - Confirm. The smiley face disappears.
 
-Optionally also note any open positions; FTMOBot was in dry-run mode so
+Optionally also note any open positions; US500_MeanRev was in dry-run mode so
 there shouldn't be any.
 
 ### Step 2: close MT5 fully (~10 sec)
@@ -46,16 +46,16 @@ Launch MT5 again. Log back into the demo account if it doesn't auto-login.
 
 Then attach BOTH EAs:
 
-**EA #1 -- FTMOBot (the index mean-reversion bot, already-running strategy):**
+**EA #1 -- US500_MeanRev (the index mean-reversion bot, already-running strategy):**
 - Open a US500 D1 chart (File → New Chart → US500, set timeframe to D1)
-- Drag `FTMOBot` from Navigator → Expert Advisors onto the chart
+- Drag `US500_MeanRev` from Navigator → Expert Advisors onto the chart
 - Inputs: leave defaults (`InpDryRun=true` if still validating, or
   `false` if you'd already flipped it)
 - OK. Confirm smiley appears.
 
-**EA #2 -- FTMOBotPairs (the NEW gold-silver pairs bot):**
+**EA #2 -- XAUUSD_XAGUSD_Pairs (the NEW gold-silver pairs bot):**
 - Open a XAUUSD D1 chart (File → New Chart → XAUUSD, timeframe D1)
-- Drag `FTMOBotPairs` from Navigator → Expert Advisors onto the chart
+- Drag `XAUUSD_XAGUSD_Pairs` from Navigator → Expert Advisors onto the chart
 - Inputs (defaults are fine):
   - `InpSymbolA = "XAUUSD"`
   - `InpSymbolB = "XAGUSD"`
@@ -71,8 +71,8 @@ Then attach BOTH EAs:
 
 Click **AutoTrading** button (should already be green from before, but
 confirm). Both EAs now operate independently:
-- FTMOBot fires Index MR signals across US500/USTEC/US30/DE40
-- FTMOBotPairs fires pairs trades on XAUUSD/XAGUSD when the
+- US500_MeanRev fires Index MR signals across US500/USTEC/US30/DE40
+- XAUUSD_XAGUSD_Pairs fires pairs trades on XAUUSD/XAGUSD when the
   cointegration spread hits z = +/-2.5
 
 ### Step 6: verify in the Experts log (~30 sec)
@@ -80,12 +80,12 @@ confirm). Both EAs now operate independently:
 Bottom of MT5, Experts tab. You should see TWO init blocks:
 
 ```
-[FTMOBot] init  symbol=US500  tf=PERIOD_D1  lib=libquant 0.1.0
-[FTMOBot] FTMO state initialised  balance=...  handle=1
-[FTMOBot] dry_run=true  risk=0.500%  formation=20  entry_z=1.00
+[US500_MeanRev] init  symbol=US500  tf=PERIOD_D1  lib=libquant 0.1.0
+[US500_MeanRev] FTMO state initialised  balance=...  handle=1
+[US500_MeanRev] dry_run=true  risk=0.500%  formation=20  entry_z=1.00
 
-[FTMOBotPairs] init  pair=XAUUSD-XAGUSD  lib=libquant 0.1.0
-[FTMOBotPairs] FTMO state init  balance=...  handle=2
+[XAUUSD_XAGUSD_Pairs] init  pair=XAUUSD-XAGUSD  lib=libquant 0.1.0
+[XAUUSD_XAGUSD_Pairs] FTMO state init  balance=...  handle=2
                        dry_run=true  entry_z=2.50 exit_z=0.50 cat_z=5.00 risk=0.50%
 ```
 
@@ -111,14 +111,14 @@ MaxDD cut nearly in half (5.08% -> 2.35%).
 ## Monitor doesn't need any changes
 
 The paper-trade monitor already captures `mt5.positions_get()` which
-returns all positions regardless of symbol. When FTMOBotPairs opens a
+returns all positions regardless of symbol. When XAUUSD_XAGUSD_Pairs opens a
 XAUUSD + XAGUSD pair, those positions automatically show up in the
 JSONL snapshots. The daily review reports include them in the open-
 positions table.
 
 ## After 24h of dry-run
 
-Same as FTMOBot: open the FTMOBotPairs inputs (right-click chart ->
+Same as US500_MeanRev: open the XAUUSD_XAGUSD_Pairs inputs (right-click chart ->
 Expert Advisors -> Properties), flip `InpDryRun` to `false`, OK. Now
 real pair orders fire.
 
@@ -132,7 +132,7 @@ weekly tracking-error review.
 
 ## If anything goes wrong
 
-- **"FTMOBotPairs cannot find function quant_rolling_ols"** -> the new
+- **"XAUUSD_XAGUSD_Pairs cannot find function quant_rolling_ols"** -> the new
   libquant.dll didn't get copied. Close MT5, re-run the copy in step 3,
   re-open.
 - **Pairs EA errors on init with "Cannot find symbol XAUUSD"** -> the

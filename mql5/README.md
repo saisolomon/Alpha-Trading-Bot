@@ -10,7 +10,7 @@ this layer is THIN -- all math goes through `libquant.dll` (built from
 ```
 mql5/
 ├── Experts/
-│   └── FTMOBot.mq5            -- main EA (OnInit / OnDeinit / OnTick)
+│   └── US500_MeanRev.mq5            -- main EA (OnInit / OnDeinit / OnTick)
 ├── Include/
 │   ├── QuantLib.mqh           -- DLL imports for libquant
 │   └── FTMORisk.mqh           -- DLL imports for libftmorisk
@@ -28,7 +28,7 @@ The MT5 terminal expects files in specific directories under
 
 2. Copy this tree there:
    ```
-   <terminal_data>/MQL5/Experts/FTMOBot.mq5
+   <terminal_data>/MQL5/Experts/US500_MeanRev.mq5
    <terminal_data>/MQL5/Include/QuantLib.mqh
    <terminal_data>/MQL5/Include/FTMORisk.mqh
    <terminal_data>/MQL5/Libraries/libquant.dll       (from ../cpp/build/Release/)
@@ -37,9 +37,9 @@ The MT5 terminal expects files in specific directories under
    ```
 
 3. In MetaEditor (open via terminal Tools > MetaQuotes Language Editor):
-   - Open `Experts/FTMOBot.mq5`
+   - Open `Experts/US500_MeanRev.mq5`
    - F7 to compile
-   - In MT5 terminal, drag `FTMOBot` from the Navigator onto a chart
+   - In MT5 terminal, drag `US500_MeanRev` from the Navigator onto a chart
    - Enable "AutoTrading" (the green button in the toolbar)
 
 ## Permission requirements

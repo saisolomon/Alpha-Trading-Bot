@@ -11,7 +11,7 @@ trades. A cloud routine can't operate MT5 directly. The split:
 
 | Component | Where | Cadence | Job |
 |---|---|---|---|
-| MT5 terminal + FTMOBot EA | Local Windows | continuous | Trade |
+| MT5 terminal + US500_MeanRev EA | Local Windows | continuous | Trade |
 | `paper_trade_monitor.py`  | Local Windows | continuous | Snapshot every 60s |
 | `push_snapshots.ps1`      | Local Windows | hourly task | Commit + push snapshots to git |
 | `cloud_daily_review.py`   | Claude routine | daily 22:30 UTC | Pull, review, commit report |
@@ -30,7 +30,7 @@ trades. A cloud routine can't operate MT5 directly. The split:
    the Python paper-trade review scripts only.
 
 3. **Deploy the EA** per `mql5/PAPER_TRADE_PLAN.md` (copy DLLs +
-   FTMOBot.mq5 into the MT5 data folder, F7 in MetaEditor, attach to a
+   US500_MeanRev.mq5 into the MT5 data folder, F7 in MetaEditor, attach to a
    D1 chart, AutoTrading ON, `InpDryRun=false`).
 
 ## Local-side setup (one time, on the Windows host)
@@ -55,7 +55,7 @@ $args = "run python C:\Users\saisolomon\ftmo-bot\scripts\paper_trade_monitor.py 
 $action = New-ScheduledTaskAction -Execute $cmd -Argument $args -WorkingDirectory C:\Users\saisolomon\ftmo-bot
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 99 -RestartInterval (New-TimeSpan -Minutes 5)
-Register-ScheduledTask -TaskName "FTMOBot Paper-Trade Monitor" `
+Register-ScheduledTask -TaskName "US500_MeanRev Paper-Trade Monitor" `
     -Action $action -Trigger $trigger -Settings $settings -RunLevel Highest
 ```
 
@@ -70,7 +70,7 @@ $action = New-ScheduledTaskAction `
 $trigger = New-ScheduledTaskTrigger -Once `
     -At (Get-Date) `
     -RepetitionInterval (New-TimeSpan -Hours 1)
-Register-ScheduledTask -TaskName "FTMOBot Paper-Trade Push" `
+Register-ScheduledTask -TaskName "US500_MeanRev Paper-Trade Push" `
     -Action $action -Trigger $trigger -RunLevel Highest
 ```
 
@@ -88,7 +88,7 @@ Once `/schedule` is back, create **two routines** with these specs:
 ### Routine 1: Daily review
 
 **Cron:** `30 22 * * *`  (22:30 UTC every day, ~midnight Prague in winter)
-**Title:** `FTMOBot daily paper-trade review`
+**Title:** `US500_MeanRev daily paper-trade review`
 **Prompt:**
 ```
 You are running the daily paper-trade review for the FTMO bot.
@@ -114,7 +114,7 @@ The PAPER_TRADE_PLAN.md in this repo is the authoritative spec for what
 ### Routine 2: Weekly tracking-error review
 
 **Cron:** `30 22 * * 0`  (22:30 UTC every Sunday)
-**Title:** `FTMOBot weekly paper-trade review`
+**Title:** `US500_MeanRev weekly paper-trade review`
 **Prompt:**
 ```
 You are running the weekly tracking-error review for the FTMO bot.
@@ -171,7 +171,7 @@ $action = New-ScheduledTaskAction `
     -Argument "run python scripts/cloud_daily_review.py" `
     -WorkingDirectory "C:\Users\saisolomon\ftmo-bot"
 $trigger = New-ScheduledTaskTrigger -Daily -At 22:30
-Register-ScheduledTask -TaskName "FTMOBot Daily Review" `
+Register-ScheduledTask -TaskName "US500_MeanRev Daily Review" `
     -Action $action -Trigger $trigger -RunLevel Highest
 ```
 

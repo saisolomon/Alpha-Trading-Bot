@@ -49,6 +49,93 @@ Format every entry with a date stamp `YYYY-MM-DD`. Append at the top of each sub
 
 ### Strategy Decisions
 
+### 2026-05-19 — Cross-market hedge-fund mandate adopted; deploy BOTH carry EAs
+**Context:** After breakout family failed (ORB on US indices, session-breakouts across 19 markets), user explicitly upgraded the operating principle: *"A strategy is a hypothesis about a MECHANISM, not a hypothesis about a SYMBOL. Test the mechanism across all available markets; deploy the subset where it survives."* Carry mechanism then tested across two universes: JPY-crosses and USD-vs-exotics.
+
+**Sweep results (12y D1, spot-only L/S top-N/bot-N):**
+- JPY-cross top1/bot1 (AUDJPY long / NZDJPY short): Sharpe **+0.79**, t=+2.74
+- Exotic top2/bot2 (USDMXN/USDNOK long, USDZAR/USDSEK short): Sharpe **+1.41**, t=+4.92
+
+**Sub-period regimes are INVERTED — the key insight:**
+| Period | JPY-carry | EM-carry |
+|---|---|---|
+| 2014-2018 | -0.70 | +2.75 |
+| 2019-2022 | -0.22 | +0.78 |
+| 2023-2026 | +5.00 | -0.98 |
+
+**Joint backtest with regime gate (252d-MA proxy) + carry income:**
+- JPY-carry standalone: Sharpe +0.44, Max DD -5.02%, PF 1.71, WR 50%
+- EM-carry standalone: Sharpe +0.51, Max DD -5.11%, PF 1.66, WR 53%
+- **Joint 50/50: Sharpe +0.66, Max DD -2.80%, FTMO sim PASS**
+- **Correlation JPY-EM: +0.008** (zero), rolling 6m max +0.41, min -0.52
+
+**Decision:** Deploy BOTH `AUDJPY_CHFJPY_Carry` (AUDJPY long / NZDJPY short) and `USDMXN_USDZAR_Carry` (USDMXN long / USDZAR short) as parallel EAs. They harvest the same UIP-violation premium in non-overlapping regimes. Combined portfolio (with existing Index MR + Gold-Silver Pairs) projected Sharpe **~0.8-1.0**, Max DD **~3-5%**.
+
+**Rationale:** Per the hedge-fund mandate, this is exactly the "test the mechanism across markets, deploy whichever survives" outcome — except multiple subsets survived, and they're regime-anti-correlated, so we deploy all of them. This is textbook Bridgewater regime-diversification: combining two strategies with the same fundamental driver but independent failure modes approaches additive Sharpe at the portfolio level.
+
+**Reversibility:** Easy. Either EA can be turned off independently (per-leg risk 0.5% × 2 legs = 1% per EA; turning one off frees that 1% of risk budget for the other).
+
+**Files added:**
+- `strategies/jpy_carry/HYPOTHESIS.md` + `__init__.py`
+- `strategies/em_carry/HYPOTHESIS.md` + `__init__.py`
+- `mql5/Experts/AUDJPY_CHFJPY_Carry.mq5`
+- `mql5/Experts/USDMXN_USDZAR_Carry.mq5`
+- `scripts/probe_exotic_swap_rates.py`
+- `scripts/jpy_meanrev_bucket_test.py` (returned FAIL — kept for record)
+- `scripts/jpy_carry_bucket_test.py`
+- `scripts/jpy_carry_universe_sweep.py`
+- `scripts/exotic_carry_universe_sweep.py`
+- `scripts/run_carry_portfolio_backtest.py`
+
+**Key gotcha discovered:** The auto-generated "FRAGILE -- stick with JPY only" verdict in `exotic_carry_universe_sweep.py` was wrong — it judged each strategy in isolation rather than across the portfolio. Always evaluate strategies against the *deployed portfolio*, not as standalone — a strategy that's regime-anti-correlated with the existing book is high-value even if its standalone Sharpe is modest.
+
+**2026-05-19 deployment-day finding (post-go-live):** First DRY-RUN log from AUDJPY_CHFJPY_Carry showed `gate FAIL  AUDJPY swap_long=3.52 NZDJPY swap_short=-3.83`. The broker's swap-spread on JPY-crosses is HUGE — every JPY-cross has *negative* swap_short. Re-probed all 6 JPY-crosses (scripts/probe_jpy_swap_both_sides.py): no L/S pairing where both legs earn carry exists.
+
+**Pivot:** changed AUDJPY_CHFJPY_Carry from AUDJPY/NZDJPY to **AUDJPY/CHFJPY**. CHFJPY has the smallest swap_short cost (-0.06 vs NZDJPY's -3.83), so net carry of the pairing is +3.52 - 0.06 = **+3.46/lot/day** vs the broken -0.31 of the original. CHF is also the canonical risk-off currency, providing partial hedge against JPY-rally carry-unwind events.
+
+**Architectural improvement applied to both carry EAs:** switched regime gate from per-leg checks (`swap_long >= X AND swap_short >= Y`) to **NET-carry check** (`swap_long_of_long_leg + swap_short_of_short_leg >= X`). Per-leg gates can reject pairings that ARE net profitable, or accept pairings that are NET unprofitable when the broker's swap spread is asymmetric. Net carry is what the position actually earns each day, so gate on that.
+
+**Process learning:** *Always re-probe both swap sides on the live broker before locking in a pairing.* The historical academic literature on carry pairs assumes interbank rates with symmetric swap spreads. Retail brokers do not. The bucket-test research I did was correct as research; the broker-deployment translation needed one more probe step that I skipped.
+
+### 2026-05-24 — CRITICAL BUG fixed: US500_MeanRev z-score NaN bypass
+
+**Discovered via live dry-run logs from 2026-05-20/21.** US500_MeanRev.mq5 was generating SIGNAL lines with `z=-nan(ind)` and would have entered trades with garbage data if US500 weren't broker-restricted on MetaQuotes-Demo. Critical-priority fix.
+
+**Root cause (two-part):**
+1. US500_MeanRev.mq5 used MQL5 `EMPTY_VALUE` (= `DBL_MAX` = 1.797e308) as the "no data" sentinel for the warm-up bars of `formation_returns`. The C++ `quant_rolling_zscore` library uses `std::isnan()` to detect missing values, and `std::isnan(DBL_MAX) == false`. So the library treated DBL_MAX as real data, overflowed the running sum to +inf, and `inf - inf` produced NaN in the variance computation. Every subsequent z-score was NaN.
+2. The MQL5 entry guard `if(zscore >= -InpEntryZ) return;` failed to skip on NaN because **all NaN comparisons return false in IEEE-754**. So `NaN >= -1.0` is false, the early return doesn't fire, and the EA falls through to entry-order generation with NaN signal data.
+
+**Fix (defense in depth, 4 layers):**
+1. `ComputeSignal` now builds `formation_returns` as a slice containing ONLY valid entries (no DBL_MAX contamination) and passes that to the cpp library.
+2. `ComputeSignal` validates output `out_zscore` with `MathIsValidNumber()` before returning success.
+3. `OnTick` entry path re-checks `MathIsValidNumber(zscore)` before the `>=` comparison.
+4. `OnTick` exit path now fires `time_stop` independently of `ComputeSignal` success (so a future signal-pipeline break doesn't trap us in an indefinite-hold position).
+
+**Regression tests:** `tests/test_cpp_parity.py::test_rolling_zscore_clean_input_never_nan`, `test_rolling_zscore_dbl_max_poisons_output`, `test_rolling_zscore_sliced_valid_only_is_clean`. All 3 pass; the second one specifically locks in the DBL_MAX-poisoning behavior so we'd notice if the cpp library ever adds DBL_MAX detection (in which case the slice approach would no longer be strictly necessary, but defense in depth still wins).
+
+**Lesson learned: NaN comparisons silently bypass guards.** Any time MQL5 code does `if(value >= threshold) return;`, that guard is *not* a NaN guard — it's a "value is bigger" guard. **MQL5 + cpp interop must always validate input AND output for finite-ness explicitly via `MathIsValidNumber()`.** The same pattern should be audited in XAUUSD_XAGUSD_Pairs, AUDJPY_CHFJPY_Carry, USDMXN_USDZAR_Carry — they all do similar interop and could have similar latent NaN paths. Follow-up task: cross-EA NaN audit.
+
+**Broader lesson on dry-run discipline:** This bug existed for weeks in dry-run mode and never produced a visible problem because dry-run just logs "would BUY" — it never tested the actual order-send code path. The bug only manifested when (a) the user flipped to live mode and (b) the broker happened to disallow trades on the affected symbol. Without the broker disallow, $30k of US500 would have been bought on a NaN signal. *Dry-run validates the signal-evaluation path but DOES NOT validate the order-send-with-real-broker path. The latter requires real-broker live-mode testing — which is exactly why the staged-flip-to-live protocol is non-negotiable.*
+
+### 2026-05-24 — EA naming convention: asset-first
+
+**Renamed all 4 EAs** from `FTMOBot*`-prefixed names to asset-first names so the filename, log prefix, and broker order-comment field all unambiguously identify which symbols the EA actually trades.
+
+| Old | New | Symbols traded |
+|---|---|---|
+| `FTMOBot.mq5` | `US500_MeanRev.mq5` | US500 |
+| `FTMOBotPairs.mq5` | `XAUUSD_XAGUSD_Pairs.mq5` | XAUUSD + XAGUSD |
+| `FTMOBotJPYCarry.mq5` | `AUDJPY_CHFJPY_Carry.mq5` | AUDJPY + CHFJPY |
+| `FTMOBotEMCarry.mq5` | `USDMXN_USDZAR_Carry.mq5` | USDMXN + USDZAR |
+
+Naming convention added to CLAUDE.md §8 → "EA Naming Convention". Format: `<ASSETS>_<Strategy>.mq5` where ASSETS is the literal broker symbol(s) traded. Internal log prefixes (`[<ea_name>]`), MT5 order-comment fields, and file-header comment blocks must all match.
+
+**Reason:** the `FTMOBot*` prefix conveyed no information about the underlying assets, making it ambiguous when reading the Experts-tab logs with multiple bots running. The new naming pattern self-documents: opening the Experts tab now shows `[AUDJPY_CHFJPY_Carry]` and `[USDMXN_USDZAR_Carry]` so the reader knows immediately which pair just signaled, and the MT5 trade history shows the same identifier in the comment column for each fill.
+
+**Process:** updated source files, log prefixes, MT5 order comments, file-header comment blocks, 9 markdown docs that referenced the old names, deleted old `.mq5` + `.ex5` from both repo and MT5 Experts dir, recompiled all 4 (clean: 0 errors each), copied new `.ex5` to MT5. Users must remove the old EAs from their charts in MT5 and re-attach the new ones — MT5 still has the old in-memory versions running until refresh.
+
+
+
 *No entries yet.*
 
 ---
@@ -70,13 +157,13 @@ proven 2-strategy portfolio (Sharpe 0.51, MaxDD 2.35%, rho -0.019 between legs).
 
 **What's running right now on the MetaQuotes-Demo account (login 5050327497):**
 
-  EA 1 -- FTMOBot.mq5 (Index Mean-Reversion, HMM-gated)
+  EA 1 -- US500_MeanRev.mq5 (Index Mean-Reversion, HMM-gated)
     - Attached to US500 D1 chart
     - Trades US500/USTEC/US30/DE40 cross-section
     - Standalone Sharpe 0.48, MaxDD 5.08%
     - Currently dry-run; user planning to flip to live after 24h clean logs
 
-  EA 2 -- FTMOBotPairs.mq5 (Gold-Silver Cointegration Pairs)
+  EA 2 -- XAUUSD_XAGUSD_Pairs.mq5 (Gold-Silver Cointegration Pairs)
     - Attached to XAUUSD D1 chart
     - Two-leg market-neutral: long XAU + short XAG (or vice versa)
     - Entry at |spread z-score| > 2.5
@@ -93,7 +180,7 @@ proven 2-strategy portfolio (Sharpe 0.51, MaxDD 2.35%, rho -0.019 between legs).
   - libquant.dll deployed to MT5/Libraries (588 KB; includes math + FTMO
     rule engine + rolling OLS for pairs strategy).
   - libgcc_s_seh-1.dll deployed alongside (MinGW runtime dependency).
-  - FTMOBot.ex5 + FTMOBotPairs.ex5 compiled and active.
+  - US500_MeanRev.ex5 + XAUUSD_XAGUSD_Pairs.ex5 compiled and active.
 
 **Parity guarantees holding at every cross-language boundary:**
 
@@ -273,7 +360,7 @@ remains.
   - CLI demo (`dune exec bin/main.exe`) correctly fires Internal_killed at the 3% threshold AND headroom check denies the obviously-large order.
 
 **Phase 6 -- MQL5 EA wiring + paper-trade plan (READY but not deployed):**
-  - `mql5/Experts/FTMOBot.mq5` rewritten from stub to a thin orchestrator (~250 LoC):
+  - `mql5/Experts/US500_MeanRev.mq5` rewritten from stub to a thin orchestrator (~250 LoC):
     - OnInit allocates the OCaml FTMO state handle (`ftmo_new_account`)
     - OnTick polls account equity, calls `ftmo_apply_tick` per tick (sub-second monitoring), flattens+halts on status >= 2 (Internal_killed or Ftmo_failed)
     - At bar close: calls `quant_atr` + `quant_rolling_zscore` from libquant (single source of truth with backtest), checks `ftmo_check_pretrade` from libftmorisk before any OrderSend
@@ -310,7 +397,7 @@ remains.
   - CLI demo (`dune exec bin/main.exe`) correctly fires `Internal_killed(internal_daily)` at the 3% drawdown threshold.
 
 **MQL5 EA scaffold:**
-  - `mql5/Experts/FTMOBot.mq5` with OnInit/OnDeinit/OnTick stubs and DLL imports declared in `mql5/Include/QuantLib.mqh` and `mql5/Include/FTMORisk.mqh`. Logs but does not trade -- Phase 6 wires up actual order management.
+  - `mql5/Experts/US500_MeanRev.mq5` with OnInit/OnDeinit/OnTick stubs and DLL imports declared in `mql5/Include/QuantLib.mqh` and `mql5/Include/FTMORisk.mqh`. Logs but does not trade -- Phase 6 wires up actual order management.
 
 **Phase 1 -- Markov regime gate (REJECTED):**
   - Hypothesis: 3-state observable Markov chain (Bull/Bear/Sideways via formation-return thresholds) as a gate in front of Index MR. Specifically targeting the 2019-2020 OOS Sharpe of -0.52 where the strategy whipsawed long into a regime shift.

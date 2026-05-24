@@ -1,5 +1,5 @@
 //+------------------------------------------------------------------+
-//| FTMOBot.mq5                                                      |
+//| US500_MeanRev.mq5                                                      |
 //| Live trading EA: Index Mean-Reversion with HMM regime gate.      |
 //|                                                                  |
 //| Per ARCHITECTURE.md, this file stays THIN. All feature math goes |
@@ -50,7 +50,7 @@ int AccountTypeCode(const string s) {
    if(s == "FUNDED_STANDARD")        return FTMO_ACCT_FUNDED_STANDARD;
    if(s == "FUNDED_SWING")           return FTMO_ACCT_FUNDED_SWING;
    if(s == "FUNDED_REWARDS_1STEP")   return FTMO_ACCT_FUNDED_REWARDS_1STEP;
-   PrintFormat("[FTMOBot] Unknown account type '%s' -- defaulting to 2STEP_PHASE1", s);
+   PrintFormat("[US500_MeanRev] Unknown account type '%s' -- defaulting to 2STEP_PHASE1", s);
    return FTMO_ACCT_CHALLENGE_2STEP_PHASE1;
 }
 
@@ -58,7 +58,7 @@ int AccountTypeCode(const string s) {
 //| OnInit                                                            |
 //+------------------------------------------------------------------+
 int OnInit() {
-   PrintFormat("[FTMOBot] init  symbol=%s  tf=%s  lib=%s",
+   PrintFormat("[US500_MeanRev] init  symbol=%s  tf=%s  lib=%s",
                _Symbol, EnumToString(_Period), quant_version());
 
    g_initial_capital = AccountInfoDouble(ACCOUNT_BALANCE);
@@ -67,12 +67,12 @@ int OnInit() {
       g_initial_capital
    );
    if(g_ftmo_handle == 0) {
-      Print("[FTMOBot] FATAL: ftmo_new_account returned null handle");
+      Print("[US500_MeanRev] FATAL: ftmo_new_account returned null handle");
       return INIT_FAILED;
    }
-   PrintFormat("[FTMOBot] FTMO state initialised  balance=%.2f  handle=%I64d",
+   PrintFormat("[US500_MeanRev] FTMO state initialised  balance=%.2f  handle=%I64d",
                g_initial_capital, g_ftmo_handle);
-   PrintFormat("[FTMOBot] dry_run=%s  risk=%.3f%%  formation=%d  entry_z=%.2f",
+   PrintFormat("[US500_MeanRev] dry_run=%s  risk=%.3f%%  formation=%d  entry_z=%.2f",
                (string)(InpDryRun?"true":"false"), InpPerTradeRiskPct*100,
                InpFormationBars, InpEntryZ);
    return INIT_SUCCEEDED;
@@ -82,7 +82,7 @@ int OnInit() {
 //| OnDeinit                                                          |
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason) {
-   PrintFormat("[FTMOBot] deinit  reason=%d", reason);
+   PrintFormat("[US500_MeanRev] deinit  reason=%d", reason);
    if(g_ftmo_handle != 0) {
       ftmo_free_account(g_ftmo_handle);
       g_ftmo_handle = 0;
@@ -99,7 +99,7 @@ bool LoadRecentBars(const int n_bars,
    ArraySetAsSeries(rates, true);
    int got = CopyRates(_Symbol, _Period, 1, n_bars, rates);
    if(got != n_bars) {
-      PrintFormat("[FTMOBot] CopyRates returned %d (asked %d)", got, n_bars);
+      PrintFormat("[US500_MeanRev] CopyRates returned %d (asked %d)", got, n_bars);
       return false;
    }
    ArrayResize(highs,  n_bars);
@@ -116,6 +116,25 @@ bool LoadRecentBars(const int n_bars,
 
 //+------------------------------------------------------------------+
 //| Signal pipeline: returns latest ATR + z-score (or false on error)|
+//|                                                                  |
+//| BUG-FIX 2026-05-24: the previous version used MQL5 EMPTY_VALUE   |
+//| (= DBL_MAX) as the "no data" sentinel for the warm-up bars of    |
+//| formation_returns. The C++ rolling-z-score library expects NaN   |
+//| (via std::isnan), and std::isnan(DBL_MAX) == false. So the cpp   |
+//| ran arithmetic on DBL_MAX which overflowed to +inf, then         |
+//| inf-inf produced NaN in the variance, and every subsequent       |
+//| z-score was NaN. The MQL5 guard `if(zscore >= -InpEntryZ)` then  |
+//| fails to skip (NaN comparisons always return false), so the EA   |
+//| would enter trades with NaN sizing math.                          |
+//|                                                                  |
+//| Fix is belt-and-suspenders:                                       |
+//|   (a) only pass the VALID portion of formation_returns to the    |
+//|       cpp library -- no EMPTY_VALUE contamination at all          |
+//|   (b) the caller of ComputeSignal verifies the output is finite  |
+//|       via MathIsValidNumber before trusting it (see OnTick)       |
+//|                                                                  |
+//| See May 20-21 logs for the empirical evidence of the bug:        |
+//|   [US500_MeanRev] SIGNAL: z=-nan(ind) atr=85.0157 lots=3.90 ...        |
 //+------------------------------------------------------------------+
 bool ComputeSignal(double &out_atr, double &out_zscore, double &out_close) {
    // Total bars needed = z_lookback (for z computation) + formation_bars
@@ -131,26 +150,50 @@ bool ComputeSignal(double &out_atr, double &out_zscore, double &out_close) {
    QuantLogIfError(rc, "quant_atr");
    if(rc != QUANT_OK) return false;
    out_atr = atr_series[n_bars - 1];
-   if(out_atr <= 0) return false;
+   if(out_atr <= 0 || !MathIsValidNumber(out_atr)) return false;
 
-   // 2. Cumulative log returns over formation window, then rolling z-score
-   double formation_returns[];
-   ArrayResize(formation_returns, n_bars);
-   for(int i = 0; i < n_bars; i++) {
-      formation_returns[i] = EMPTY_VALUE;
+   // 2. Cumulative log returns over formation window.
+   // The first InpFormationBars indices have no formation return (need
+   // closes[i - formation_bars]), so we ONLY build the valid slice and
+   // pass that to the cpp library. This avoids the EMPTY_VALUE-poisoning
+   // bug.
+   int valid_n = n_bars - InpFormationBars;
+   if(valid_n < InpZLookback) {
+      PrintFormat("[US500_MeanRev] insufficient valid bars (%d) for zscore lookback %d",
+                  valid_n, InpZLookback);
+      return false;
    }
-   // formation_return[i] = log(close[i] / close[i-formation_bars])
-   for(int i = InpFormationBars; i < n_bars; i++) {
-      formation_returns[i] = MathLog(closes[i] / closes[i - InpFormationBars]);
+   double formation_returns[];
+   ArrayResize(formation_returns, valid_n);
+   for(int j = 0; j < valid_n; j++) {
+      int i = j + InpFormationBars;
+      double prev = closes[i - InpFormationBars];
+      if(prev <= 0 || !MathIsValidNumber(prev) ||
+         closes[i] <= 0 || !MathIsValidNumber(closes[i])) {
+         // Defensive: if a close price is invalid (broker data glitch),
+         // bail rather than feed garbage to the cpp library.
+         PrintFormat("[US500_MeanRev] invalid close[%d]=%.4f or close[%d]=%.4f",
+                     i, closes[i], i - InpFormationBars, prev);
+         return false;
+      }
+      formation_returns[j] = MathLog(closes[i] / prev);
    }
 
    double zscore_series[];
-   ArrayResize(zscore_series, n_bars);
-   rc = quant_rolling_zscore(formation_returns, n_bars, InpZLookback, zscore_series);
+   ArrayResize(zscore_series, valid_n);
+   rc = quant_rolling_zscore(formation_returns, valid_n, InpZLookback, zscore_series);
    QuantLogIfError(rc, "quant_rolling_zscore");
    if(rc != QUANT_OK) return false;
-   out_zscore = zscore_series[n_bars - 1];
+   out_zscore = zscore_series[valid_n - 1];
    out_close  = closes[n_bars - 1];
+
+   // 3. Final defensive check: never return a non-finite zscore.
+   //    MathIsValidNumber returns false for NaN, +Inf, -Inf.
+   if(!MathIsValidNumber(out_zscore)) {
+      PrintFormat("[US500_MeanRev] WARN zscore=%.4f is not finite -- ABORTING bar",
+                  out_zscore);
+      return false;
+   }
    return true;
 }
 
@@ -179,7 +222,7 @@ double ComputeLots(const double equity, const double stop_distance_price) {
 //+------------------------------------------------------------------+
 bool SendLongEntry(const double lots, const double stop_price, const double tp_price) {
    if(InpDryRun) {
-      PrintFormat("[FTMOBot] DRY-RUN: would BUY %.2f lots %s  stop=%.2f tp=%.2f",
+      PrintFormat("[US500_MeanRev] DRY-RUN: would BUY %.2f lots %s  stop=%.2f tp=%.2f",
                   lots, _Symbol, stop_price, tp_price);
       return true;
    }
@@ -198,21 +241,21 @@ bool SendLongEntry(const double lots, const double stop_price, const double tp_p
    req.tp           = tp_price;
    req.deviation    = 20;
    req.type_filling = ORDER_FILLING_IOC;
-   req.comment      = "FTMOBot meanrev";
+   req.comment      = "US500_MeanRev";
 
    // OrderCheck takes a *Check* result, NOT MqlTradeResult.
    if(!OrderCheck(req, chk) || chk.retcode != 0) {
-      PrintFormat("[FTMOBot] OrderCheck rejected: retcode=%d comment=%s",
+      PrintFormat("[US500_MeanRev] OrderCheck rejected: retcode=%d comment=%s",
                   chk.retcode, chk.comment);
       return false;
    }
    if(!OrderSend(req, res)) {
-      PrintFormat("[FTMOBot] OrderSend FAILED: retcode=%d comment=%s",
+      PrintFormat("[US500_MeanRev] OrderSend FAILED: retcode=%d comment=%s",
                   res.retcode, res.comment);
       return false;
    }
    if(res.retcode != TRADE_RETCODE_DONE) {
-      PrintFormat("[FTMOBot] OrderSend non-DONE retcode=%d comment=%s",
+      PrintFormat("[US500_MeanRev] OrderSend non-DONE retcode=%d comment=%s",
                   res.retcode, res.comment);
       return false;
    }
@@ -220,7 +263,7 @@ bool SendLongEntry(const double lots, const double stop_price, const double tp_p
    g_position_stop_price = stop_price;
    g_position_tp_price   = tp_price;
    g_position_bars_held  = 0;
-   PrintFormat("[FTMOBot] BUY filled: ticket=%I64u price=%.2f volume=%.2f sl=%.2f tp=%.2f",
+   PrintFormat("[US500_MeanRev] BUY filled: ticket=%I64u price=%.2f volume=%.2f sl=%.2f tp=%.2f",
                res.order, res.price, res.volume, stop_price, tp_price);
    return true;
 }
@@ -230,7 +273,7 @@ bool SendLongEntry(const double lots, const double stop_price, const double tp_p
 //+------------------------------------------------------------------+
 bool CloseLongPosition(const string reason) {
    if(InpDryRun) {
-      PrintFormat("[FTMOBot] DRY-RUN: would CLOSE long %s (reason=%s)",
+      PrintFormat("[US500_MeanRev] DRY-RUN: would CLOSE long %s (reason=%s)",
                   _Symbol, reason);
       g_position_ticket = 0;
       return true;
@@ -246,12 +289,12 @@ bool CloseLongPosition(const string reason) {
    req.price        = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.deviation    = 20;
    req.type_filling = ORDER_FILLING_IOC;
-   req.comment      = StringFormat("FTMOBot %s", reason);
+   req.comment      = StringFormat("US500_MeanRev %s", reason);
    if(!OrderSend(req, res) || res.retcode != TRADE_RETCODE_DONE) {
-      PrintFormat("[FTMOBot] Close failed: retcode=%d", res.retcode);
+      PrintFormat("[US500_MeanRev] Close failed: retcode=%d", res.retcode);
       return false;
    }
-   PrintFormat("[FTMOBot] CLOSED long (%s) at %.2f", reason, res.price);
+   PrintFormat("[US500_MeanRev] CLOSED long (%s) at %.2f", reason, res.price);
    g_position_ticket = 0;
    return true;
 }
@@ -267,7 +310,7 @@ void OnTick() {
    int status = ftmo_apply_tick(g_ftmo_handle, (double)TimeCurrent(), equity);
    if(status >= 2) {
       // 2 = Internal_killed, 3 = Ftmo_failed
-      PrintFormat("[FTMOBot] FTMO state status=%d at equity=%.2f -- FLATTEN & HALT",
+      PrintFormat("[US500_MeanRev] FTMO state status=%d at equity=%.2f -- FLATTEN & HALT",
                   status, equity);
       if(g_position_ticket != 0) CloseLongPosition("ftmo_kill");
       ExpertRemove();
@@ -277,7 +320,7 @@ void OnTick() {
       // Imminent -- log but continue; bar-close logic will respect headroom check.
       static datetime last_imminent_log = 0;
       if(TimeCurrent() - last_imminent_log > 60) {
-         PrintFormat("[FTMOBot] FTMO IMMINENT at equity=%.2f -- reducing risk", equity);
+         PrintFormat("[US500_MeanRev] FTMO IMMINENT at equity=%.2f -- reducing risk", equity);
          last_imminent_log = (datetime)TimeCurrent();
       }
    }
@@ -295,13 +338,18 @@ void OnTick() {
    // ------------------------------------------------------------------
    if(g_position_ticket != 0) {
       g_position_bars_held++;
+      // Time-stop must fire INDEPENDENTLY of ComputeSignal success --
+      // if the signal pipeline ever breaks (NaN data, library error,
+      // etc.) we still need the max-hold safety to bound exposure.
+      bool time_stop = (g_position_bars_held >= InpMaxHoldBars);
+      if(time_stop) {
+         CloseLongPosition("time_stop");
+         return;
+      }
+      // z-score-based early exit only if the signal computes cleanly
       double atr, zs, close;
-      if(ComputeSignal(atr, zs, close)) {
-         bool exit_z = (zs > -InpExitZ);
-         bool time_stop = (g_position_bars_held >= InpMaxHoldBars);
-         if(exit_z || time_stop) {
-            CloseLongPosition(time_stop ? "time_stop" : "exit_z");
-         }
+      if(ComputeSignal(atr, zs, close) && MathIsValidNumber(zs)) {
+         if(zs > -InpExitZ) CloseLongPosition("exit_z");
       }
       return;  // don't open new entries while one is open
    }
@@ -311,6 +359,15 @@ void OnTick() {
    // ------------------------------------------------------------------
    double atr, zscore, close;
    if(!ComputeSignal(atr, zscore, close)) return;
+   // Belt-and-suspenders: re-verify zscore is finite at the call site
+   // too. NaN comparisons always return false in IEEE-754, so the
+   // `zscore >= -InpEntryZ` guard would FAIL to skip on NaN, letting
+   // bad data through to ordering. This explicit check prevents that.
+   if(!MathIsValidNumber(zscore) || !MathIsValidNumber(atr)) {
+      PrintFormat("[US500_MeanRev] non-finite signal (z=%.4f atr=%.4f) -- skipping bar",
+                  zscore, atr);
+      return;
+   }
    if(zscore >= -InpEntryZ) return;  // not deep enough drawdown
 
    // ------------------------------------------------------------------
@@ -320,7 +377,7 @@ void OnTick() {
    double tp_distance   = atr * InpAtrTpMult;
    double lots = ComputeLots(equity, stop_distance);
    if(lots <= 0) {
-      PrintFormat("[FTMOBot] zero lots -- skipping (atr=%.4f stop_distance=%.4f)",
+      PrintFormat("[US500_MeanRev] zero lots -- skipping (atr=%.4f stop_distance=%.4f)",
                   atr, stop_distance);
       return;
    }
@@ -331,7 +388,7 @@ void OnTick() {
                              SymbolInfoDouble(_Symbol, SYMBOL_POINT));
    int decision = ftmo_check_pretrade(g_ftmo_handle, equity, worst_case_loss);
    if(decision == FTMO_DECISION_DENY) {
-      PrintFormat("[FTMOBot] DENY entry: headroom violated  worst_case_loss=%.2f",
+      PrintFormat("[US500_MeanRev] DENY entry: headroom violated  worst_case_loss=%.2f",
                   worst_case_loss);
       return;
    }
@@ -339,13 +396,13 @@ void OnTick() {
       // Reduce size; conservative half.
       lots = NormalizeDouble(lots * 0.5,
                               (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
-      PrintFormat("[FTMOBot] CAUTION imminent: halving lot size to %.2f", lots);
+      PrintFormat("[US500_MeanRev] CAUTION imminent: halving lot size to %.2f", lots);
    }
 
    double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    double stop_price = ask - stop_distance;
    double tp_price   = ask + tp_distance;
-   PrintFormat("[FTMOBot] SIGNAL: z=%.2f atr=%.4f lots=%.2f sl=%.2f tp=%.2f",
+   PrintFormat("[US500_MeanRev] SIGNAL: z=%.2f atr=%.4f lots=%.2f sl=%.2f tp=%.2f",
                zscore, atr, lots, stop_price, tp_price);
    SendLongEntry(lots, stop_price, tp_price);
 }
@@ -359,7 +416,7 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
    // Detect when our position was closed by SL or TP (broker-side fill)
    if(trans.type == TRADE_TRANSACTION_DEAL_ADD && g_position_ticket != 0) {
       if(!PositionSelectByTicket(g_position_ticket)) {
-         PrintFormat("[FTMOBot] position %I64u closed by broker (SL/TP)",
+         PrintFormat("[US500_MeanRev] position %I64u closed by broker (SL/TP)",
                      g_position_ticket);
          g_position_ticket = 0;
       }

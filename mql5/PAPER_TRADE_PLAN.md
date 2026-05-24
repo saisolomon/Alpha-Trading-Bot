@@ -37,11 +37,11 @@ broker realism, also open a free demo on a real FTMO-compatible broker
    cp ocaml/_build/.../libftmorisk.dll <terminal>/MQL5/Libraries/
    cp mql5/Include/QuantLib.mqh       <terminal>/MQL5/Include/
    cp mql5/Include/FTMORisk.mqh       <terminal>/MQL5/Include/
-   cp mql5/Experts/FTMOBot.mq5        <terminal>/MQL5/Experts/
+   cp mql5/Experts/US500_MeanRev.mq5        <terminal>/MQL5/Experts/
    ```
-3. In MetaEditor, F7 to compile FTMOBot.mq5.
+3. In MetaEditor, F7 to compile US500_MeanRev.mq5.
 4. In MT5: Tools > Options > Expert Advisors > "Allow DLL imports" = ON.
-5. Drag FTMOBot onto a US500 (or USTEC, US30, DE40) D1 chart. Set inputs:
+5. Drag US500_MeanRev onto a US500 (or USTEC, US30, DE40) D1 chart. Set inputs:
    - `InpAccountType = "CHALLENGE_2STEP_PHASE1"`
    - `InpDryRun = false`  (we want REAL paper fills)
    - leave the other inputs at defaults

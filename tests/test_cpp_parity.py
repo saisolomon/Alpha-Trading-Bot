@@ -289,3 +289,97 @@ def test_real_data_rolling_zscore_parity():
     cpp_out = np.array(quantlib.compute_rolling_zscore(cum10.tolist(), 252))
     ok, msg = _allclose_with_nan(cpp_out, py_out)
     assert ok, f"REAL DATA z-score parity failed: {msg}"
+
+
+# ---------------------------------------------------------------------------
+# REGRESSION: 2026-05-24 FTMOBot NaN bug
+# ---------------------------------------------------------------------------
+# FTMOBot.mq5 was passing MQL5 EMPTY_VALUE (= DBL_MAX = 1.797e308) as
+# "no data" sentinel to compute_rolling_zscore. The cpp library uses
+# std::isnan() to detect missing values, and std::isnan(DBL_MAX) is
+# false, so DBL_MAX got treated as real data, overflowed to +inf in the
+# running sum, and produced NaN forever after. Empirical evidence in
+# Memory.md 2026-05-24 + logs/20260520-21.log.
+#
+# These tests lock in the contract:
+#   (a) NaN inputs are correctly treated as missing (covered by parity
+#       test above)
+#   (b) DBL_MAX inputs ARE poisonous and the only safe way to pass a
+#       partial series is to slice to the valid window or use NaN
+#   (c) The library output is NEVER a non-finite-NaN-poison source on
+#       a clean all-finite input -- catches future regression where
+#       internal arithmetic might overflow on extreme values
+#
+# If any of these break: the FTMOBot.mq5 fix may have regressed too.
+
+def test_rolling_zscore_clean_input_never_nan():
+    """Sanity: with all-finite input and full window, output bars from
+    index L-1 onwards must all be finite. Catches any future overflow
+    regression in the running-sum implementation."""
+    rng = np.random.default_rng(42)
+    # Realistic log-return scale (~0.01 sigma per bar)
+    series = rng.normal(0, 0.01, 1000).tolist()
+    out = np.array(quantlib.compute_rolling_zscore(series, 252))
+    # First L-1 bars are warm-up -> NaN by convention
+    assert np.all(np.isnan(out[:251])), "warm-up bars should be NaN"
+    # Every bar after warm-up must be finite
+    assert np.all(np.isfinite(out[251:])), \
+        f"non-finite z-score on clean input: {out[~np.isfinite(out)][:5]}"
+
+
+def test_rolling_zscore_dbl_max_poisons_output():
+    """Regression: passing DBL_MAX (MQL5 EMPTY_VALUE) as warm-up entries
+    DOES poison the output. This is the bug FTMOBot hit. The test locks
+    in the expectation that callers MUST NOT use DBL_MAX -- they should
+    use NaN or pass the sliced valid range only."""
+    DBL_MAX = float("1.7976931348623157e308")
+    series = ([DBL_MAX] * 20) + np.random.default_rng(0).normal(0, 0.01, 280).tolist()
+    out = np.array(quantlib.compute_rolling_zscore(series, 50))
+    # The cpp library is internally correct in its handling of NaN, but
+    # DBL_MAX is NOT NaN -- it gets treated as a real point, overflows
+    # the running sum, and poisons everything after.
+    assert np.any(np.isnan(out[50:])), \
+        ("DBL_MAX inputs no longer poison output -- the cpp library may have"
+         " added DBL_MAX detection, in which case FTMOBot.mq5's defensive"
+         " slice-to-valid approach is no longer necessary. Investigate.")
+
+
+def test_rolling_zscore_sliced_valid_only_is_clean():
+    """The FIX in FTMOBot.mq5 is to slice the array to only valid
+    entries before passing to cpp. This test confirms the fix path
+    works -- a sliced array of pure finite values gives clean output."""
+    rng = np.random.default_rng(1)
+    valid_series = rng.normal(0, 0.01, 280).tolist()  # all finite
+    out = np.array(quantlib.compute_rolling_zscore(valid_series, 50))
+    assert np.all(np.isnan(out[:49])), "warm-up must be NaN"
+    assert np.all(np.isfinite(out[49:])), "post-warm-up must all be finite"
+
+
+def test_rolling_ols_then_zscore_pipeline_safe_on_sliced_input():
+    """Regression for FTMOBotPairs.mq5: the pairs EA does
+    rolling_ols(log_b, log_a) -> spread = log_a - beta*log_b - alpha
+    -> rolling_zscore(spread). If spread contains DBL_MAX for the OLS
+    warm-up range, the second rolling_zscore poisons. The fix is to
+    only compute spread over the post-OLS-warmup range.
+
+    This test simulates the fixed pipeline: compute OLS on full data,
+    take only the valid slice (beta finite), then run rolling_zscore
+    on that. Result should be all finite post-warmup."""
+    rng = np.random.default_rng(7)
+    n = 600
+    coint_lookback = 100
+    z_lookback = 100
+    log_b = rng.normal(0, 0.01, n).cumsum().tolist()
+    log_a = (np.array(log_b) * 1.5 + rng.normal(0, 0.01, n)).tolist()
+    ols = quantlib.compute_rolling_ols(log_b, log_a, coint_lookback)
+    beta = np.array(ols[0])
+    alpha = np.array(ols[1])
+    # Slice to valid range only (mirroring FTMOBotPairs.mq5 fix)
+    valid_mask = np.isfinite(beta) & np.isfinite(alpha)
+    spread_valid = (np.array(log_a)[valid_mask] -
+                     beta[valid_mask] * np.array(log_b)[valid_mask] -
+                     alpha[valid_mask])
+    z = np.array(quantlib.compute_rolling_zscore(spread_valid.tolist(), z_lookback))
+    # Post-warmup z-scores must all be finite
+    assert np.all(np.isfinite(z[z_lookback - 1:])), \
+        f"sliced OLS->zscore pipeline produced NaN: {z[~np.isfinite(z)][:5]}"

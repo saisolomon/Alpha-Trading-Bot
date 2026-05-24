@@ -34,12 +34,24 @@ try {
         Log "no new snapshots to push"
         exit 0
     }
-    git add data/paper_trade/ 2>&1 | Out-Null
+    # Capture stderr+stdout so failures are diagnosable in the log.
+    # Previous version used `2>&1 | Out-Null` which silently discarded
+    # the real git error and left only the "To <url>" echo line, making
+    # every failure look identical and untriageable.
+    $addOut = git add data/paper_trade/ 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "git add failed: $addOut" }
+
     $today = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
-    git commit -m "paper-trade snapshots $today" 2>&1 | Out-Null
-    git push 2>&1 | Out-Null
+    $commitOut = git commit -m "paper-trade snapshots $today" 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "git commit failed: $commitOut" }
+
+    $pushOut = git push 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "git push failed: $pushOut" }
+
     Log "pushed snapshots OK"
 } catch {
-    Log "ERROR: $_"
+    # Single-line, log-friendly version of the multi-line error
+    $err = ($_.ToString() -replace "`r?`n", " | ")
+    Log "ERROR: $err"
     exit 1
 }

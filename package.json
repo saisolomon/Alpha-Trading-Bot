@@ -1,0 +1,13 @@
+{
+  "name": "ftmo-bot-convex",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Convex backend for FTMO MT5 trading bot — heartbeat, snapshots, status, alerts",
+  "scripts": {
+    "convex:dev": "convex dev",
+    "convex:deploy": "convex deploy"
+  },
+  "devDependencies": {
+    "convex": "^1.16.0"
+  }
+}

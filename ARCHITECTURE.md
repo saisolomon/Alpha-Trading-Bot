@@ -54,7 +54,7 @@ without an internal kill firing first" -- not just test it on examples.
 For a single-account bot this is overkill. For a system whose failure mode is
 "lose all the prop capital in one tick" it's the right tradeoff.
 
-### MQL5 -- live trading (`mql5/Experts/FTMOBot.mq5`)
+### MQL5 -- live trading (`mql5/Experts/US500_MeanRev.mq5`)
 
 Owns: the actual EA running inside the MT5 terminal. Order send/modify/cancel,
 position management, tick subscription, account info polling.
@@ -113,13 +113,13 @@ opam install . --deps-only
 dune build
 
 # 3. Compile the MQL5 EA
-# Open mql5/Experts/FTMOBot.mq5 in MetaEditor, F7 to compile
-# Or via command line: metaeditor64.exe /compile:mql5/Experts/FTMOBot.mq5
+# Open mql5/Experts/US500_MeanRev.mq5 in MetaEditor, F7 to compile
+# Or via command line: metaeditor64.exe /compile:mql5/Experts/US500_MeanRev.mq5
 
 # 4. Deploy
 # Copy libquant.dll and libftmorisk.dll to MT5 terminal/MQL5/Libraries/
 # Copy any ONNX models to MT5 terminal/MQL5/Files/
-# Attach FTMOBot to a chart in MT5 -> live
+# Attach US500_MeanRev to a chart in MT5 -> live
 ```
 
 Detailed instructions in each subdirectory's README.
