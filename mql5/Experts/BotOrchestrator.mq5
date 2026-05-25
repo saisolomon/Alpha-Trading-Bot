@@ -73,6 +73,29 @@ string PrimarySymbolFromEAName(const string ea_name) {
 }
 
 //+------------------------------------------------------------------+
+//| Extract the target timeframe from the EA filename.               |
+//|   <SYMBOL>_M15_<...>  -> PERIOD_M15                              |
+//|   <SYMBOL>_H1_<...>   -> PERIOD_H1                               |
+//|   <SYMBOL>_H4_<...>   -> PERIOD_H4                               |
+//|   <SYMBOL>_D1_<...>   -> PERIOD_D1                               |
+//|   anything else       -> InpChartPeriod (default)                |
+//|                                                                  |
+//| Required so the orchestrator opens charts at the correct         |
+//| timeframe for each EA -- otherwise an H1 EA attached to a D1     |
+//| chart fails its OnInit period check.                             |
+//+------------------------------------------------------------------+
+ENUM_TIMEFRAMES TimeframeFromEAName(const string ea_name) {
+   if(StringFind(ea_name, "_M1_")  >= 0) return PERIOD_M1;
+   if(StringFind(ea_name, "_M5_")  >= 0) return PERIOD_M5;
+   if(StringFind(ea_name, "_M15_") >= 0) return PERIOD_M15;
+   if(StringFind(ea_name, "_M30_") >= 0) return PERIOD_M30;
+   if(StringFind(ea_name, "_H1_")  >= 0) return PERIOD_H1;
+   if(StringFind(ea_name, "_H4_")  >= 0) return PERIOD_H4;
+   if(StringFind(ea_name, "_D1_")  >= 0) return PERIOD_D1;
+   return InpChartPeriod;
+}
+
+//+------------------------------------------------------------------+
 //| Read manifest from MQL5/Files/<InpManifestFile> into g_manifest. |
 //| One EA name per line; lines starting with # are comments.        |
 //+------------------------------------------------------------------+
@@ -171,13 +194,15 @@ string DeployEA(const string ea_name) {
    if(!SymbolSelect(symbol, true)) {
       return "FAIL: SymbolSelect(" + symbol + ") returned false (symbol not on broker?)";
    }
-   // 3) Find or create a D1 chart for the symbol
-   long chart = FindChartFor(symbol, InpChartPeriod);
+   // 3) Find or create a chart at the EA's required timeframe (parsed
+   //    from filename per asset-first convention)
+   ENUM_TIMEFRAMES tf = TimeframeFromEAName(ea_name);
+   long chart = FindChartFor(symbol, tf);
    if(chart < 0) {
-      chart = ChartOpen(symbol, InpChartPeriod);
+      chart = ChartOpen(symbol, tf);
       if(chart == 0) {
-         return "FAIL: ChartOpen(" + symbol + ") returned 0 (err=" +
-                 IntegerToString(GetLastError()) + ")";
+         return "FAIL: ChartOpen(" + symbol + " " + EnumToString(tf) +
+                ") returned 0 (err=" + IntegerToString(GetLastError()) + ")";
       }
    }
    // 4) Apply template -- this is the only way to attach an EA programmatically.

@@ -125,4 +125,31 @@ int MinutesToNextNews(const datetime now) {
    return (int)(min_delta / 60);
 }
 
+//+------------------------------------------------------------------+
+//| Detect a news event that fired in the LAST `look_back_min`       |
+//| minutes. Used by news-reaction strategies that want to enter on  |
+//| the first bar AFTER a news release (continuation trade).         |
+//|                                                                  |
+//| Returns true and populates out_event_time if any high-impact     |
+//| event released within the look-back window. Returns false        |
+//| otherwise.                                                        |
+//+------------------------------------------------------------------+
+bool RecentNewsEvent(const datetime now, const int look_back_min,
+                     datetime &out_event_time) {
+   out_event_time = 0;
+   const long look_sec = (long)look_back_min * 60;
+   const int n = ArraySize(kNewsCalendar2026);
+   long best_delta = look_sec + 1;  // sentinel: greater than any valid
+   for(int i = 0; i < n; i++) {
+      long delta = (long)now - (long)kNewsCalendar2026[i];
+      // delta > 0 -> event is in the past
+      // delta <= look_sec -> within our look-back window
+      if(delta > 0 && delta <= look_sec && delta < best_delta) {
+         best_delta = delta;
+         out_event_time = kNewsCalendar2026[i];
+      }
+   }
+   return out_event_time != 0;
+}
+
 #endif  // __NEWS_BLACKOUT_MQH__

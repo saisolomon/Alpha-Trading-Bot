@@ -37,3 +37,7 @@ EURUSD_M15_LondonMomo
 EURUSD_M15_RSIFade
 XAUUSD_M15_LondonFix
 BTCUSD_M15_TrendFollow
+GBPUSD_H1_SwingBreak
+AUDJPY_H4_TrendFollow
+XAUUSD_H1_NewsReaction
+EURGBP_H4_MeanReversion
