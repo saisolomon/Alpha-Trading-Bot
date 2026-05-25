@@ -189,6 +189,26 @@ http.route({
   }),
 });
 
+// GET /accounts -- list every registered account's brokerLogin so the
+// dashboard can auto-select the first one when ?brokerLogin= is missing.
+http.route({
+  path: "/accounts",
+  method: "GET",
+  handler: httpAction(async (ctx) => {
+    const all = await ctx.runQuery(api.accounts.listAll, {});
+    const summary = all.map((a) => ({
+      brokerLogin: a.brokerLogin,
+      brokerServer: a.brokerServer,
+      accountType: a.accountType,
+      latestSnapshotAt: a.latestSnapshotAt,
+    }));
+    return new Response(JSON.stringify({ accounts: summary }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }),
+});
+
 http.route({
   path: "/status",
   method: "GET",
@@ -340,7 +360,9 @@ const DASHBOARD_HTML = `<!doctype html>
 
 <script>
 const PARAMS = new URLSearchParams(location.search);
-const BROKER_LOGIN = PARAMS.get("brokerLogin") || "5050327497";
+// If no ?brokerLogin= in URL, auto-discover from /accounts on first
+// fetch (handles "old account got deleted" case after broker migrations).
+let BROKER_LOGIN = PARAMS.get("brokerLogin") || null;
 const POLL_MS = 15_000;
 
 // Track which alert IDs we've already shown so we only notify on NEW ones
@@ -348,7 +370,26 @@ const seenAlertIds = new Set();
 let alertsSeenThisSession = 0;
 let isFirstRefresh = true;
 
-document.getElementById("loginPill").textContent = "#" + BROKER_LOGIN;
+if (BROKER_LOGIN) {
+  document.getElementById("loginPill").textContent = "#" + BROKER_LOGIN;
+}
+
+async function autoDiscoverBrokerLogin() {
+  if (BROKER_LOGIN) return BROKER_LOGIN;
+  try {
+    const r = await fetch("/accounts");
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (d.accounts && d.accounts.length > 0) {
+      // Pick the account with the freshest snapshot (most-active)
+      d.accounts.sort((a, b) => (b.latestSnapshotAt || 0) - (a.latestSnapshotAt || 0));
+      BROKER_LOGIN = String(d.accounts[0].brokerLogin);
+      document.getElementById("loginPill").textContent = "#" + BROKER_LOGIN;
+      return BROKER_LOGIN;
+    }
+  } catch (e) { /* fall through */ }
+  return null;
+}
 
 // ---------------- Browser notifications --------------------------------------
 function maybeShowNotifCta() {
@@ -468,6 +509,11 @@ async function ackAll() {
 // ---------------- Main refresh loop -----------------------------------------
 async function refresh() {
   try {
+    // Auto-discover first registered account if URL didn't specify one
+    if (!BROKER_LOGIN) {
+      await autoDiscoverBrokerLogin();
+      if (!BROKER_LOGIN) throw new Error("no accounts registered in Convex yet");
+    }
     const r = await fetch("/status?brokerLogin=" + encodeURIComponent(BROKER_LOGIN));
     if (!r.ok) {
       const e = await r.json().catch(() => ({ error: r.statusText }));
