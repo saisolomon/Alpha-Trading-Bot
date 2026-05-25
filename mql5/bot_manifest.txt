@@ -11,9 +11,16 @@
 #   4. Auto-saves a template the first time it sees the EA running
 #      (so the next removal can be auto-recovered)
 #
-# To add a new EA: append the EA name on a new line, refresh MT5's
-# Navigator (Ctrl+N → right-click → Refresh), and the orchestrator
-# will pick it up within 60s.
+# To add a new EA:
+#   1. Append the EA name on a new line below.
+#   2. Refresh MT5 Navigator (Ctrl+N → right-click → Refresh).
+#   3. CHICKEN-AND-EGG: the orchestrator can't auto-deploy a NEW EA
+#      until it has a template saved for it. You must MANUALLY attach
+#      the new EA to a chart ONCE. The orchestrator's auto-save logic
+#      will then capture the template within 60s, and from then on it
+#      self-heals (re-attaches if you accidentally remove the EA).
+#   4. Save the updated MT5 profile (File → Profiles → Save As →
+#      FTMOBot, overwrite) so the chart layout survives MT5 restart.
 #
 # This file lives at MQL5/Files/bot_manifest.txt in your MT5 install.
 # The copy in repo/mql5/ is the source of truth and gets copied to the
