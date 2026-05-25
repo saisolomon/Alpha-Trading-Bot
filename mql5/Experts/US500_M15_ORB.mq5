@@ -29,6 +29,8 @@
 
 #include <QuantLib.mqh>
 #include <FTMORisk.mqh>
+#include <NewsBlackout.mqh>
+#include <PortfolioRisk.mqh>
 
 //+------------------------------------------------------------------+
 //| Inputs                                                           |
@@ -346,6 +348,17 @@ void OnTick() {
 
    double worst_case = lots * stop_distance / SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE)
                         * SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+   // News blackout (NFP/FOMC/CPI/ECB/BoE +/- 5min)
+   if(IsNewsBlackout(TimeCurrent())) {
+      PrintFormat("[US500_M15_ORB] news blackout; skip session");
+      g_traded_this_session = true;
+      return;
+   }
+   // Portfolio-level aggregate-risk cap (2% per CLAUDE.md sec 3)
+   if(WouldExceedRiskCap(equity, worst_case)) {
+      g_traded_this_session = true;
+      return;
+   }
    int decision = ftmo_check_pretrade(g_ftmo_handle, equity, worst_case);
    if(decision == FTMO_DECISION_DENY) {
       PrintFormat("[US500_M15_ORB] DENY (worst_case=%.2f)", worst_case);

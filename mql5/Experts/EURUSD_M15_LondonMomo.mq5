@@ -27,6 +27,8 @@
 
 #include <QuantLib.mqh>
 #include <FTMORisk.mqh>
+#include <NewsBlackout.mqh>
+#include <PortfolioRisk.mqh>
 
 input string  InpAccountType         = "CHALLENGE_2STEP_PHASE1";
 input int     InpSessionOpenHour     = 7;        // London cash open UTC
@@ -293,6 +295,11 @@ void OnTick() {
 
    double worst_case = lots * range_width / SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE)
                         * SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+   if(IsNewsBlackout(TimeCurrent())) {
+      PrintFormat("[EURUSD_M15_LondonMomo:%s] news blackout; skip session", _Symbol);
+      g_traded_this_session = true; return;
+   }
+   if(WouldExceedRiskCap(equity, worst_case)) { g_traded_this_session = true; return; }
    int decision = ftmo_check_pretrade(g_ftmo_handle, equity, worst_case);
    if(decision == FTMO_DECISION_DENY) { g_traded_this_session = true; return; }
    if(decision == FTMO_DECISION_IMMINENT) lots *= 0.5;

@@ -26,6 +26,8 @@
 
 #include <QuantLib.mqh>
 #include <FTMORisk.mqh>
+#include <NewsBlackout.mqh>
+#include <PortfolioRisk.mqh>
 
 input string  InpAccountType         = "CHALLENGE_2STEP_PHASE1";
 input int     InpRsiPeriod           = 14;
@@ -194,6 +196,8 @@ void OnTick() {
 
    double worst_case = lots * stop_distance / SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE)
                         * SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+   if(IsNewsBlackout(TimeCurrent())) return;  // quiet skip; RSI fires often, no log spam
+   if(WouldExceedRiskCap(equity, worst_case)) return;
    int decision = ftmo_check_pretrade(g_ftmo_handle, equity, worst_case);
    if(decision == FTMO_DECISION_DENY) return;
    if(decision == FTMO_DECISION_IMMINENT) lots *= 0.5;
