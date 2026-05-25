@@ -63,3 +63,50 @@ export const listAllInternal = internalQuery({
     return await ctx.db.query("accounts").collect();
   },
 });
+
+// Delete an account + all its associated heartbeats, snapshots,
+// positions, and deals. Used to clean up stale accounts after a broker
+// migration (e.g. when we switched from MetaQuotes-Demo -> OANDA-Demo-1
+// the old account stayed in the table and started triggering
+// heartbeat-stale Pushover spam). Public so we can call via
+// `npx convex run accounts:deleteByBrokerLogin '{"brokerLogin":...}'`.
+export const deleteByBrokerLogin = mutation({
+  args: { brokerLogin: v.number() },
+  handler: async (ctx, args) => {
+    const account = await ctx.db
+      .query("accounts")
+      .withIndex("byBrokerLogin", (q) => q.eq("brokerLogin", args.brokerLogin))
+      .first();
+    if (!account) return { found: false };
+    // Delete child rows first
+    const heartbeats = await ctx.db
+      .query("heartbeats")
+      .withIndex("byAccount_recordedAt", (q) => q.eq("accountId", account._id))
+      .collect();
+    for (const h of heartbeats) await ctx.db.delete(h._id);
+    const snapshots = await ctx.db
+      .query("snapshots")
+      .withIndex("byAccount_recordedAt", (q) => q.eq("accountId", account._id))
+      .collect();
+    for (const s of snapshots) await ctx.db.delete(s._id);
+    const positions = await ctx.db
+      .query("positions")
+      .withIndex("byAccount_recordedAt", (q) => q.eq("accountId", account._id))
+      .collect();
+    for (const p of positions) await ctx.db.delete(p._id);
+    const deals = await ctx.db
+      .query("deals")
+      .withIndex("byAccount_dealTime", (q) => q.eq("accountId", account._id))
+      .collect();
+    for (const d of deals) await ctx.db.delete(d._id);
+    // Then delete the account itself
+    await ctx.db.delete(account._id);
+    return {
+      found: true,
+      deletedHeartbeats: heartbeats.length,
+      deletedSnapshots: snapshots.length,
+      deletedPositions: positions.length,
+      deletedDeals: deals.length,
+    };
+  },
+});
