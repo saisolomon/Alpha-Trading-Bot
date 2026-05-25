@@ -15,7 +15,10 @@ export const recordBatch = mutation({
     accountId: v.id("accounts"),
     deals: v.array(v.object({
       ticket: v.number(),
-      positionId: v.optional(v.number()),
+      // positionId can be null for funding/dividend/correction deals
+      // that aren't tied to a position. v.optional() accepts missing
+      // fields but not explicit null, so use v.union to handle both.
+      positionId: v.optional(v.union(v.number(), v.null())),
       symbol: v.string(),
       side: v.string(),
       entry: v.string(),
@@ -25,7 +28,7 @@ export const recordBatch = mutation({
       swap: v.number(),
       commission: v.number(),
       dealTimeMs: v.number(),
-      eaName: v.optional(v.string()),
+      eaName: v.optional(v.union(v.string(), v.null())),
     })),
   },
   handler: async (ctx, args) => {
@@ -43,11 +46,11 @@ export const recordBatch = mutation({
         skipped++;
         continue;
       }
-      await ctx.db.insert("deals", {
-        ...d,
-        accountId: args.accountId,
-        recordedAt: now,
-      });
+      // Normalize null -> omit so the table-schema's v.optional accepts it
+      const row: any = { ...d, accountId: args.accountId, recordedAt: now };
+      if (row.positionId === null) delete row.positionId;
+      if (row.eaName === null) delete row.eaName;
+      await ctx.db.insert("deals", row);
       inserted++;
     }
     return { inserted, skipped };

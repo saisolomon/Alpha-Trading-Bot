@@ -107,7 +107,13 @@ $intervalTrigger = New-ScheduledTaskTrigger `
     -RepetitionInterval (New-TimeSpan -Minutes 5) `
     -RepetitionDuration (New-TimeSpan -Days 10000)
 
-# Settings: restart on failure, single instance, never time out
+# Settings: restart on failure, single instance, bounded execution time
+# CHANGED 2026-05-25: was ExecutionTimeLimit=0 (unlimited). When the
+# monitor python crashed but its parent process stayed alive, Task
+# Scheduler kept seeing the task as "Running" -> blocked all retries
+# with ERROR_SERVICE_ALREADY_RUNNING (-2147020576). Setting a 4-hour
+# limit forces stuck instances to be killed, freeing the trigger to
+# spawn a fresh instance on the next 5-min interval.
 $settings = New-ScheduledTaskSettingsSet `
     -RestartCount 10 `
     -RestartInterval (New-TimeSpan -Minutes 5) `
@@ -115,7 +121,7 @@ $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
     -StartWhenAvailable `
-    -ExecutionTimeLimit (New-TimeSpan -Hours 0)
+    -ExecutionTimeLimit (New-TimeSpan -Hours 4)
 
 # Run as the current user, interactive (needs to connect to MT5 GUI
 # session, so SYSTEM/SERVICE wouldn't work).
