@@ -26,10 +26,13 @@
 # The copy in repo/mql5/ is the source of truth and gets copied to the
 # MT5 location by scripts/deploy_mt5_files.ps1 (or manually).
 
-US500_MeanRev
-XAUUSD_XAGUSD_Pairs
-AUDJPY_CHFJPY_Carry
-USDMXN_USDZAR_Carry
-WTI_BRT_Pairs
-MSFT_AAPL_Pairs
-JPN225_Momentum
+# === 2026-05-25: pivoted to M15 strategies on OANDA-Demo-1 ===
+# All previous D1 EAs deleted. New M15-optimized EAs will be added
+# here as they ship. BotOrchestrator (not listed here -- it IS the
+# supervisor) auto-deploys whatever is in this list.
+#
+# Manifest is intentionally empty during the M15 build window.
+US500_M15_ORB
+EURUSD_M15_LondonMomo
+EURUSD_M15_RSIFade
+XAUUSD_M15_LondonFix

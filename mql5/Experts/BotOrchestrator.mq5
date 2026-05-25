@@ -42,6 +42,12 @@ input int     InpPollSeconds       = 60;
 input ENUM_TIMEFRAMES InpChartPeriod = PERIOD_D1;
 input bool    InpVerbose           = true;     // log every poll cycle (turn off after burn-in)
 input bool    InpAutoSaveTemplates = true;     // auto-save .tpl on first sighting
+//-- Broker-specific symbol suffix. Some brokers append a suffix to
+//-- every symbol (e.g. OANDA Simulation Trading appends ".sim", some
+//-- ECNs append "_" or ".pro"). The orchestrator appends this when
+//-- deriving the chart symbol from the EA name. Leave empty for
+//-- brokers with plain symbol names.
+input string  InpSymbolSuffix      = ".sim";   // OANDA-Demo-1 uses .sim
 
 //+------------------------------------------------------------------+
 //| State                                                            |
@@ -60,7 +66,10 @@ datetime g_last_manifest_check = 0;
 string PrimarySymbolFromEAName(const string ea_name) {
    int underscore = StringFind(ea_name, "_");
    if(underscore <= 0) return "";
-   return StringSubstr(ea_name, 0, underscore);
+   string base = StringSubstr(ea_name, 0, underscore);
+   // Append broker-specific suffix (e.g. ".sim" for OANDA Simulation
+   // Trading). Empty suffix = plain symbol names (e.g. MetaQuotes).
+   return base + InpSymbolSuffix;
 }
 
 //+------------------------------------------------------------------+
