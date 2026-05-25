@@ -41,3 +41,4 @@ GBPUSD_H1_SwingBreak
 AUDJPY_H4_TrendFollow
 XAUUSD_H1_NewsReaction
 EURGBP_H4_MeanReversion
+US100_H1_OvernightDrift
