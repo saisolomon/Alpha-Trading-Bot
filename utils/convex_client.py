@@ -128,6 +128,15 @@ class ConvexClient:
             "deals": deals,
         })
 
+    def post_signals(self, *, broker_login: int, events: list[dict]) -> dict | None:
+        """POST /signals — batch ingest EA signal events parsed from MT5 logs."""
+        if not events:
+            return {"inserted": 0, "skipped": 0}
+        return self._post("/signals", {
+            "brokerLogin": broker_login,
+            "events": events,
+        })
+
     def post_snapshot(
         self,
         *,

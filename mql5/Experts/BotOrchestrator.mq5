@@ -40,7 +40,8 @@
 input string  InpManifestFile      = "bot_manifest.txt";  // in MQL5/Files/
 input int     InpPollSeconds       = 60;
 input ENUM_TIMEFRAMES InpChartPeriod = PERIOD_D1;
-input bool    InpVerbose           = true;     // log every poll cycle (turn off after burn-in)
+input bool    InpVerbose           = false;    // true = log every poll; false = only on state CHANGES
+input int     InpSummaryEveryN     = 30;       // print "I'm alive" summary every N polls (~30min)
 input bool    InpAutoSaveTemplates = true;     // auto-save .tpl on first sighting
 //-- Broker-specific symbol suffix. Some brokers append a suffix to
 //-- every symbol (e.g. OANDA Simulation Trading appends ".sim", some
@@ -55,6 +56,33 @@ input string  InpSymbolSuffix      = ".sim";   // OANDA-Demo-1 uses .sim
 string g_manifest[];     // EA names from manifest
 int    g_poll_count = 0;
 datetime g_last_manifest_check = 0;
+//-- Track last-poll result per EA (parallel arrays). Used to detect
+//-- state CHANGES so we only log when something actually flips ok/fail
+//-- instead of spamming every 60s.
+string g_last_ea_names[];
+string g_last_ea_results[];
+
+string GetLastResult(const string ea_name) {
+   int n = ArraySize(g_last_ea_names);
+   for(int i = 0; i < n; i++) {
+      if(g_last_ea_names[i] == ea_name) return g_last_ea_results[i];
+   }
+   return "";  // never seen this EA
+}
+
+void StoreLastResult(const string ea_name, const string result) {
+   int n = ArraySize(g_last_ea_names);
+   for(int i = 0; i < n; i++) {
+      if(g_last_ea_names[i] == ea_name) {
+         g_last_ea_results[i] = result;
+         return;
+      }
+   }
+   ArrayResize(g_last_ea_names,   n + 1);
+   ArrayResize(g_last_ea_results, n + 1);
+   g_last_ea_names[n]   = ea_name;
+   g_last_ea_results[n] = result;
+}
 
 //+------------------------------------------------------------------+
 //| Derive primary chart symbol from EA filename                      |
@@ -224,26 +252,34 @@ void RunSupervisorPass() {
    g_poll_count++;
    if(!LoadManifest()) return;
    int n = ArraySize(g_manifest);
-   int ok = 0, fail = 0;
+   int ok = 0, fail = 0, changed = 0;
    for(int i = 0; i < n; i++) {
       string ea = g_manifest[i];
-      // Skip self -- this EA is BotOrchestrator, attached to whatever chart user picked
       if(ea == "BotOrchestrator") continue;
       string result = DeployEA(ea);
       bool failed = (StringFind(result, "FAIL") == 0);
-      if(failed) {
-         fail++;
-         PrintFormat("[BotOrchestrator] %s: %s", ea, result);
-      } else {
-         ok++;
-         if(InpVerbose || g_poll_count == 1) {
-            PrintFormat("[BotOrchestrator] %s: %s", ea, result);
-         }
+      if(failed) fail++; else ok++;
+
+      // Only log if state changed from previous poll, or if InpVerbose
+      // is set, or on the very first poll. This silences the "ok
+      // (running on chart NNN)" noise that drowned out actual EA
+      // signals in the Experts tab.
+      string prev = GetLastResult(ea);
+      bool state_changed = (prev != result);
+      if(state_changed) changed++;
+      if(InpVerbose || g_poll_count == 1 || state_changed) {
+         string tag = failed ? "[STATE-CHANGE FAIL]" :
+                       (state_changed ? "[STATE-CHANGE]" : "");
+         PrintFormat("[BotOrchestrator] %s: %s %s", ea, result, tag);
       }
+      StoreLastResult(ea, result);
    }
-   if(g_poll_count == 1 || g_poll_count % 10 == 0 || fail > 0) {
-      PrintFormat("[BotOrchestrator] poll #%d: ok=%d fail=%d total=%d",
-                  g_poll_count, ok, fail, n);
+   // Summary: print on poll #1, on any state change, on any fail, or
+   // every InpSummaryEveryN polls for liveness (~30 min default).
+   if(g_poll_count == 1 || changed > 0 || fail > 0 ||
+      g_poll_count % InpSummaryEveryN == 0) {
+      PrintFormat("[BotOrchestrator] poll #%d: ok=%d fail=%d total=%d  changes=%d",
+                  g_poll_count, ok, fail, n, changed);
    }
 }
 

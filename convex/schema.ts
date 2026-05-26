@@ -119,6 +119,26 @@ export default defineSchema({
     .index("byAccount_dealTime", ["accountId", "dealTimeMs"])
     .index("byAccount_ticket", ["accountId", "ticket"]),
 
+  // EA signal events: ENTRY, range-locked, skip, etc., parsed from
+  // MT5's Experts-tab logs by the local monitor and posted in batches.
+  // Used by the daily-digest cron to report what each EA actually did
+  // during the trading day (since DRY-RUN signals don't show up as
+  // broker fills in the deals table).
+  eaSignals: defineTable({
+    accountId: v.id("accounts"),
+    eaName: v.string(),          // e.g. "EURUSD_M15_LondonMomo"
+    symbol: v.string(),          // e.g. "GBPUSD.sim" (where EA fired)
+    eventType: v.string(),       // "entry" | "range_locked" | "skip" | "trail" | "close"
+    side: v.optional(v.string()),// "LONG" | "SHORT" for entry events
+    price: v.optional(v.number()),
+    volume: v.optional(v.number()),
+    eventTimeMs: v.number(),     // MT5's reported time for the event
+    rawLine: v.string(),         // original log line (for audit)
+    recordedAt: v.number(),
+  })
+    .index("byAccount_eventTime", ["accountId", "eventTimeMs"])
+    .index("byAccount_ea_eventTime", ["accountId", "eaName", "eventTimeMs"]),
+
   alerts: defineTable({
     accountId: v.optional(v.id("accounts")),
     recordedAt: v.number(),

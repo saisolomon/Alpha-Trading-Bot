@@ -123,6 +123,14 @@ def main() -> None:
     # fetch+post NEW fills each poll cycle. Seeded from Convex itself
     # at startup so a monitor restart doesn't re-send the whole history.
     deal_high_water = 0
+    # MT5 Experts-tab log tailer state. Each poll reads NEW lines from
+    # today's log file and POSTs parsed signal events to Convex.
+    from utils.mt5_log_parser import parse_log_file_since, todays_log_path
+    MT5_LOGS_DIR = Path(
+        r"C:\Users\saisolomon\AppData\Roaming\MetaQuotes\Terminal"
+        r"\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Logs"
+    )
+    log_tail_state = {"path": None, "offset": 0, "date": None}
     from utils.timeutils import prague_midnight_of
 
     cfg = MT5Config()
@@ -301,6 +309,43 @@ def main() -> None:
                               f"high_water={deal_high_water})", flush=True)
                 except Exception as exc:
                     print(f"[monitor] deal sync failed: {exc}", flush=True)
+
+                # ---- Tail MT5 Experts-tab log + POST new signal events ----
+                # Each poll reads only NEW bytes from today's log file
+                # using a per-file high-water-mark offset. Cheap.
+                try:
+                    cur_log_path, cur_log_date = todays_log_path(MT5_LOGS_DIR)
+                    # Reset offset if we rolled over to a new day's log file
+                    if log_tail_state["path"] != cur_log_path or log_tail_state["date"] != cur_log_date:
+                        log_tail_state["path"] = cur_log_path
+                        log_tail_state["date"] = cur_log_date
+                        log_tail_state["offset"] = 0
+                    events, new_offset = parse_log_file_since(
+                        cur_log_path,
+                        cur_log_date,
+                        log_tail_state["offset"],
+                    )
+                    log_tail_state["offset"] = new_offset
+                    if events:
+                        event_dicts = [{
+                            "eaName": e.ea_name,
+                            "symbol": e.symbol,
+                            "eventType": e.event_type,
+                            "side": e.side,
+                            "price": e.price,
+                            "volume": e.volume,
+                            "eventTimeMs": e.event_time_ms,
+                            "rawLine": e.raw_line,
+                        } for e in events]
+                        r = convex.post_signals(
+                            broker_login=int(cfg.login),
+                            events=event_dicts,
+                        )
+                        if r and r.get("inserted", 0) > 0:
+                            print(f"[monitor] posted {r['inserted']} new EA signals "
+                                  f"({r.get('skipped', 0)} dedupe-skipped)", flush=True)
+                except Exception as exc:
+                    print(f"[monitor] signal-log tail failed: {exc}", flush=True)
 
             if snapshots % 30 == 0:
                 print(f"[monitor] {snapshots} snapshots  "

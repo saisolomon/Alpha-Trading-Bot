@@ -107,6 +107,34 @@ http.route({
   }),
 });
 
+// POST /signals -- batch ingest of EA signal events parsed from MT5 logs
+http.route({
+  path: "/signals",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const authErr = checkSecret(request);
+    if (authErr) return authErr;
+    const body = await request.json();
+    const account = await ctx.runQuery(api.accounts.getByBrokerLogin, {
+      brokerLogin: body.brokerLogin,
+    });
+    if (!account) {
+      return new Response(
+        JSON.stringify({ error: "account not found" }),
+        { status: 404, headers: { "content-type": "application/json" } },
+      );
+    }
+    const result = await ctx.runMutation(api.eaSignals.recordBatch, {
+      accountId: account._id,
+      events: body.events ?? [],
+    });
+    return new Response(JSON.stringify({ ok: true, ...result }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }),
+});
+
 http.route({
   path: "/deals",
   method: "POST",

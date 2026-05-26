@@ -130,6 +130,28 @@ export const buildDailyReport = internalQuery({
       byEA.set(ea, cur);
     }
 
+    // EA signal events parsed from MT5 logs in the last 24h
+    // (DRY-RUN signals show up here even when no broker fill occurs)
+    const signals = await ctx.db
+      .query("eaSignals")
+      .withIndex("byAccount_eventTime", (q) =>
+        q.eq("accountId", args.accountId).gte("eventTimeMs", sinceMs),
+      )
+      .order("desc")
+      .collect();
+
+    // Count signal events per EA + type
+    const signalsByEA = new Map<string, { entries: number; skips: number; trails: number; ranges: number; other: number }>();
+    for (const s of signals) {
+      const cur = signalsByEA.get(s.eaName) ?? { entries: 0, skips: 0, trails: 0, ranges: 0, other: 0 };
+      if (s.eventType === "entry") cur.entries++;
+      else if (s.eventType === "skip") cur.skips++;
+      else if (s.eventType === "trail") cur.trails++;
+      else if (s.eventType === "range_locked") cur.ranges++;
+      else cur.other++;
+      signalsByEA.set(s.eaName, cur);
+    }
+
     // Closed deals in the last 24h (the actual TRADES made today)
     const deals = await ctx.db
       .query("deals")
@@ -169,6 +191,9 @@ export const buildDailyReport = internalQuery({
       imminentTicks,
       openPositions: last.openPositionCount,
       byEA: Array.from(byEA.entries()).map(([name, v]) => ({ name, ...v })),
+      // NEW: per-EA SIGNAL counts from MT5 logs (works in dry-run too)
+      signalsByEA: Array.from(signalsByEA.entries()).map(([name, v]) => ({ name, ...v })),
+      totalSignalCount: signals.length,
       // NEW: closed trades today
       dealCount: deals.length,
       realisedPnlTotal,
@@ -242,7 +267,14 @@ export const sendDailyReport = internalAction({
             `Max-line headroom (min):   $${r.minMaxDistance.toFixed(2)}`,
             `Imminent ticks:            ${r.imminentTicks}`,
             ``,
-            `── TRADES (${r.dealCount ?? 0} fills in last 24h) ──`,
+            `── EA SIGNALS (${r.totalSignalCount ?? 0} events in last 24h, includes DRY-RUN) ──`,
+            ((r.signalsByEA ?? []).length === 0
+              ? "  (no signal events — check MT5 Experts tab)"
+              : (r.signalsByEA ?? [])
+                  .map((e: any) => `  - ${e.name}: ${e.entries} entries, ${e.skips} skips, ${e.ranges} ranges, ${e.trails} trail-adjusts`)
+                  .join("\n")),
+            ``,
+            `── BROKER FILLS (${r.dealCount ?? 0} in last 24h; only fires after live-flip) ──`,
             dealLines,
             ``,
             `── REALISED P&L BY EA ──`,

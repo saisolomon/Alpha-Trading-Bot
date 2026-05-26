@@ -12,6 +12,7 @@ import type * as accounts from "../accounts.js";
 import type * as alerts from "../alerts.js";
 import type * as crons from "../crons.js";
 import type * as deals from "../deals.js";
+import type * as eaSignals from "../eaSignals.js";
 import type * as heartbeats from "../heartbeats.js";
 import type * as http from "../http.js";
 import type * as reports from "../reports.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   alerts: typeof alerts;
   crons: typeof crons;
   deals: typeof deals;
+  eaSignals: typeof eaSignals;
   heartbeats: typeof heartbeats;
   http: typeof http;
   reports: typeof reports;
