@@ -38,7 +38,7 @@ input int     InpSessionCloseHour    = 16;       // London close UTC
 input int     InpSessionCloseMinute  = 0;
 input double  InpPerTradeRiskPct     = 0.0025;
 input double  InpTakeProfitMult      = 1.5;
-input double  InpMinRangePct         = 0.0008;   // 0.08% on FX (tighter than indices)
+input double  InpMinRangePct         = 0.0005;   // 0.05% — loosened 2026-05-26 from 0.08% after both validation days skipped for "range too narrow" in low-vol regime
 input bool    InpDryRun              = true;
 
 //-- State
