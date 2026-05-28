@@ -121,7 +121,7 @@ bool SendEntry(const ENUM_ORDER_TYPE type, const double lots,
    req.sl = sl;
    req.tp = 0;  // no fixed TP -- trail
    req.deviation = 50;  // BTC spreads wider
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment = "AUDJPY_H4_TrendFollow";
    if(!OrderCheck(req, chk) || chk.retcode != 0) {
       PrintFormat("[AUDJPY_H4_TrendFollow:%s] OrderCheck retcode=%d", _Symbol, chk.retcode);
@@ -182,7 +182,7 @@ void ForceFlat(const string reason) {
                 ? SymbolInfoDouble(_Symbol, SYMBOL_ASK)
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.deviation = 50;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment = StringFormat("AUDJPY_H4_TrendFollow %s", reason);
    if(OrderSend(req, res) && res.retcode == TRADE_RETCODE_DONE) {
       PrintFormat("[AUDJPY_H4_TrendFollow:%s] CLOSED (%s) at %.2f", _Symbol, reason, res.price);
@@ -310,8 +310,7 @@ void OnTick() {
                _Symbol, (target_dir == +1 ? "LONG" : "SHORT"),
                entry_px, don_low, don_high, atr, lots, sl);
 
-   if(SendEntry((target_dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl)) {
-      g_pos_dir = target_dir;
-      g_trail_sl = sl;
-   }
+   g_pos_dir = target_dir;
+   g_trail_sl = sl;
+   SendEntry((target_dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl);
 }

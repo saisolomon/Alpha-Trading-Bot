@@ -99,7 +99,7 @@ bool SendEntry(const ENUM_ORDER_TYPE type, const double lots,
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.sl = sl; req.tp = tp;
    req.deviation = 20;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment = "EURUSD_M15_RSIFade";
    if(!OrderCheck(req, chk) || chk.retcode != 0) {
       PrintFormat("[EURUSD_M15_RSIFade:%s] OrderCheck retcode=%d", _Symbol, chk.retcode);
@@ -215,8 +215,11 @@ void OnTick() {
       tp = entry_px - tp_distance;
    }
 
-   if(SendEntry((target_dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL,
-                 lots, sl, tp, rsi_now)) {
-      g_bars_since_trade = 0;
-   }
+   // Always reset cooldown on ATTEMPT, not just on success. Otherwise a
+   // failed OrderSend (e.g. broker rejection) leaves cooldown unset and
+   // the EA tries to enter every bar -- exactly what caused the 16-entry
+   // spam on US500_M15_ORB before this fix.
+   g_bars_since_trade = 0;
+   SendEntry((target_dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL,
+              lots, sl, tp, rsi_now);
 }

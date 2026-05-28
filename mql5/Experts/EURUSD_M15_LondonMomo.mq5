@@ -160,7 +160,7 @@ bool SendEntry(const ENUM_ORDER_TYPE type, const double lots,
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.sl = sl; req.tp = tp;
    req.deviation = 20;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment = "EURUSD_M15_LondonMomo";
    if(!OrderCheck(req, chk) || chk.retcode != 0) {
       PrintFormat("[EURUSD_M15_LondonMomo:%s] OrderCheck retcode=%d", _Symbol, chk.retcode);
@@ -199,7 +199,7 @@ void ForceFlat(const string reason) {
                 ? SymbolInfoDouble(_Symbol, SYMBOL_ASK)
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.deviation = 20;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment = StringFormat("EURUSD_M15_LondonMomo %s", reason);
    if(OrderSend(req, res) && res.retcode == TRADE_RETCODE_DONE) {
       PrintFormat("[EURUSD_M15_LondonMomo:%s] CLOSED (%s) at %.5f", _Symbol, reason, res.price);
@@ -316,7 +316,6 @@ void OnTick() {
    PrintFormat("[EURUSD_M15_LondonMomo:%s] ENTRY %s  px=%.5f  range[%.5f,%.5f]  lots=%.2f  sl=%.5f  tp=%.5f",
                _Symbol, (dir == +1 ? "LONG" : "SHORT"),
                entry_px, g_range_low, g_range_high, lots, sl, tp);
-   if(SendEntry((dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl, tp)) {
-      g_traded_this_session = true;
-   }
+   g_traded_this_session = true;
+   SendEntry((dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl, tp);
 }

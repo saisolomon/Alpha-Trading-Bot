@@ -113,7 +113,7 @@ bool SendEntry(const double lots, const double sl) {
    req.sl = sl;
    req.tp = 0;  // time-based exit
    req.deviation = 30;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment = "US100_H1_OvernightDrift";
    if(!OrderCheck(req, chk) || chk.retcode != 0) {
       PrintFormat("[US100_H1_OvernightDrift:%s] OrderCheck retcode=%d", _Symbol, chk.retcode);
@@ -146,7 +146,7 @@ void ForceFlat(const string reason) {
    req.position = PositionGetInteger(POSITION_TICKET);
    req.price  = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.deviation = 30;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment = StringFormat("US100_H1_OvernightDrift %s", reason);
    if(OrderSend(req, res) && res.retcode == TRADE_RETCODE_DONE) {
       PrintFormat("[US100_H1_OvernightDrift:%s] CLOSED (%s) at %.2f  hold_hours=%.1f",
@@ -270,8 +270,7 @@ void OnTick() {
 
    PrintFormat("[US100_H1_OvernightDrift:%s] ENTRY LONG  px=%.2f  atr=%.2f  lots=%.2f  sl=%.2f  hold_until=%02d:00 UTC",
                _Symbol, ask, atr, lots, sl, InpExitHourUTC);
-   if(SendEntry(lots, sl)) {
-      g_entry_time = now;
-      g_last_traded_date = today;
-   }
+   g_entry_time = now;
+   g_last_traded_date = today;
+   SendEntry(lots, sl);
 }

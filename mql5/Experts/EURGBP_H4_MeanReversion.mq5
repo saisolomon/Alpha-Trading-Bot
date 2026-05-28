@@ -135,7 +135,7 @@ bool SendEntry(const ENUM_ORDER_TYPE type, const double lots,
    req.sl = sl;
    req.tp = 0;  // z-cross exit handled in code
    req.deviation = 20;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment = "EURGBP_H4_MeanReversion";
    if(!OrderCheck(req, chk) || chk.retcode != 0) {
       PrintFormat("[EURGBP_H4_MeanReversion:%s] OrderCheck retcode=%d", _Symbol, chk.retcode);
@@ -173,7 +173,7 @@ void ForceFlat(const string reason) {
                 ? SymbolInfoDouble(_Symbol, SYMBOL_ASK)
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.deviation = 20;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment = StringFormat("EURGBP_H4_MeanReversion %s", reason);
    if(OrderSend(req, res) && res.retcode == TRADE_RETCODE_DONE) {
       PrintFormat("[EURGBP_H4_MeanReversion:%s] CLOSED (%s) at %.5f", _Symbol, reason, res.price);
@@ -306,9 +306,8 @@ void OnTick() {
 
    PrintFormat("[EURGBP_H4_MeanReversion:%s] ENTRY %s  z=%.2f  px=%.5f  atr=%.5f  sl=%.5f",
                _Symbol, (target_dir == +1 ? "LONG" : "SHORT"), z, entry_px, atr, sl);
-   if(SendEntry((target_dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl, z)) {
-      g_pos_dir = target_dir;
-      g_bars_in_position = 0;
-      g_entry_z = z;
-   }
+   g_pos_dir = target_dir;
+   g_bars_in_position = 0;
+   g_entry_z = z;
+   SendEntry((target_dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl, z);
 }

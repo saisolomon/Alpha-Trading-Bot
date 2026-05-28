@@ -190,7 +190,7 @@ bool SendEntry(const ENUM_ORDER_TYPE type, const double lots,
    req.sl           = sl;
    req.tp           = tp;
    req.deviation    = 30;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment      = "US500_M15_ORB";
    if(!OrderCheck(req, chk) || chk.retcode != 0) {
       PrintFormat("[US500_M15_ORB] OrderCheck rejected retcode=%d comment=%s",
@@ -230,7 +230,7 @@ void ForceFlat(const string reason) {
                       ? SymbolInfoDouble(_Symbol, SYMBOL_ASK)
                       : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.deviation    = 30;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment      = StringFormat("US500_M15_ORB %s", reason);
    if(OrderSend(req, res) && res.retcode == TRADE_RETCODE_DONE) {
       PrintFormat("[US500_M15_ORB] CLOSED (%s) at %.2f", reason, res.price);
@@ -387,7 +387,6 @@ void OnTick() {
                (target_dir == +1 ? "LONG" : "SHORT"),
                entry_px, g_range_low, g_range_high, lots, sl, tp);
 
-   if(SendEntry((target_dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl, tp)) {
-      g_traded_this_session = true;
-   }
+   g_traded_this_session = true;
+   SendEntry((target_dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl, tp);
 }

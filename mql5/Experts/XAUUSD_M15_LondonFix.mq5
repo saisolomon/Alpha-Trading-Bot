@@ -162,7 +162,7 @@ bool SendEntry(const ENUM_ORDER_TYPE type, const double lots,
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.sl = sl; req.tp = tp;
    req.deviation = 30;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment = "XAUUSD_M15_LondonFix";
    if(!OrderCheck(req, chk) || chk.retcode != 0) {
       PrintFormat("[XAUUSD_M15_LondonFix:%s] OrderCheck retcode=%d", _Symbol, chk.retcode);
@@ -200,7 +200,7 @@ void ForceFlat(const string reason) {
                 ? SymbolInfoDouble(_Symbol, SYMBOL_ASK)
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.deviation = 30;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment = StringFormat("XAUUSD_M15_LondonFix %s", reason);
    if(OrderSend(req, res) && res.retcode == TRADE_RETCODE_DONE) {
       PrintFormat("[XAUUSD_M15_LondonFix:%s] CLOSED (%s) at %.2f", _Symbol, reason, res.price);
@@ -316,7 +316,6 @@ void OnTick() {
    PrintFormat("[XAUUSD_M15_LondonFix:%s] ENTRY %s  px=%.2f  prefix_dir=%+d  atr=%.2f  sl=%.2f tp=%.2f",
                _Symbol, (target_dir == +1 ? "LONG" : "SHORT"),
                entry_px, g_prefix_direction, atr, sl, tp);
-   if(SendEntry((target_dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl, tp)) {
-      g_traded_this_session = true;
-   }
+   g_traded_this_session = true;
+   SendEntry((target_dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl, tp);
 }

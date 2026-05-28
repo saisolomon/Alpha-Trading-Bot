@@ -98,7 +98,7 @@ bool SendEntry(const ENUM_ORDER_TYPE type, const double lots,
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.sl = sl; req.tp = tp;
    req.deviation = 30;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment = "XAUUSD_H1_NewsReaction";
    if(!OrderCheck(req, chk) || chk.retcode != 0) {
       PrintFormat("[XAUUSD_H1_NewsReaction:%s] OrderCheck retcode=%d", _Symbol, chk.retcode);
@@ -136,7 +136,7 @@ void ForceFlat(const string reason) {
                 ? SymbolInfoDouble(_Symbol, SYMBOL_ASK)
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.deviation = 30;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = ORDER_FILLING_FOK;
    req.comment = StringFormat("XAUUSD_H1_NewsReaction %s", reason);
    if(OrderSend(req, res) && res.retcode == TRADE_RETCODE_DONE) {
       PrintFormat("[XAUUSD_H1_NewsReaction:%s] CLOSED (%s) at %.2f", _Symbol, reason, res.price);
@@ -258,9 +258,8 @@ void OnTick() {
    PrintFormat("[XAUUSD_H1_NewsReaction:%s] ENTRY %s  event=%s  bar_range=%.2f atr=%.2f  px=%.2f  sl=%.2f tp=%.2f",
                _Symbol, (target_dir == +1 ? "LONG" : "SHORT"),
                TimeToString(event_time), bar_range, atr, entry_px, sl, tp);
-   if(SendEntry((target_dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl, tp)) {
-      g_pos_dir = target_dir;
-      g_bars_in_position = 0;
-      g_last_traded_news = event_time;
-   }
+   g_pos_dir = target_dir;
+   g_bars_in_position = 0;
+   g_last_traded_news = event_time;
+   SendEntry((target_dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl, tp);
 }
