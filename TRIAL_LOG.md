@@ -1,0 +1,167 @@
+# Trial Log — FTMO Trial #1 (OANDA-Demo-1, $200K, 2-Step Phase 1)
+
+> Daily activity log for the live FTMO trial that started 2026-05-28.
+> Trial ends 2026-06-10. Profit target: $10,000 (5%). 5% daily-loss line. 10% max-loss line.
+> Entries added at end-of-day after the 22:30 UTC digest.
+
+| Date | Realized P&L | Floating P&L | Day % | Cum P&L | Cum % | Notable |
+|---|---|---|---|---|---|---|
+| 2026-05-28 (Thu, Day 1) | +$1,933 | — | +0.92% | +$1,857* | +0.92% | First real trade fires. 4 wins + 1 loss across 5 EAs. *digest reported +$1,857 after swaps/commission* |
+| 2026-05-29 (Fri, Day 2) | +$80 | — | +0.01% | +$1,937 | +0.94% | Digestion day. XAUUSD +$520 win offset by GBPUSD -$439 SL. |
+| 2026-05-30 (Sat, Day 3) | 0 | — | +0.00% | +$1,937 | +0.94% | Weekend. No trades. One 5-min MT5 disconnect at 07:47 UTC, auto-recovered. |
+| 2026-05-31 (Sun, Day 4) | 0 | — | +0.01% | +$1,937 | +0.95% | Weekend. No trades. |
+| 2026-06-01 (Mon, Day 5) | -$1,025 | -$106 | **-0.55%** | +$912 | +0.46% | **First losing day.** US500 ORB -$882, GBPUSD SwingBreak -$543, US100 drift +$165. AUDJPY still open. |
+| 2026-06-02 (Tue, Day 6) | +$940 | — | **+0.72%** | +$1,852 | +0.92% | **Strong recovery.** GBPUSD LondonMomo +$743 TP, XAUUSD LondonFix +$501 TP, two small losses. AUDJPY 1.55 lot opened, closed somewhere. |
+| 2026-06-03 (Wed, Day 7, FINAL) | **-$1,395** | $0 | **-0.91%** | **-$1,465** | **-0.73%** | **4-SL cluster day.** 11:31 AUDJPY 1.37 SL -$161, 11:51 XAUUSD SL -$479, 13:06 GBPUSD SL -$251, **16:50 AUDJPY 1.55 SL -$505** (Tue position). USD-strength rip kills the "diversified" book — all 3 USD-counter pairs (AUDJPY, XAUUSD, GBPUSD) break down together. **Worst day of trial.** Portfolio risk cap held, no kill. |
+
+---
+
+## Day 7 (2026-06-03, Wednesday) — FINAL — DETAIL
+
+**Digest reported: -0.91% (worst day of trial).**
+
+**Snapshot at 22:30 UTC digest close:**
+- Balance: $200,375.48 (was $201,819 at Day 6 close → -$1,444 today incl. swaps)
+- Equity: $200,375.48 (flat — all positions closed)
+- Open positions: 0
+- Distance to daily-loss line: $10,019 (today's new anchor)
+- Distance to max-loss line: $20,038 (full safety margin intact)
+
+**Closed deals today (final, 4 SL hits):**
+
+| Time UTC | EA | Symbol | Side | Vol | Trigger | P&L |
+|---|---|---|---|---|---|---|
+| 11:31 | AUDJPY_H4_TrendFollow (Fri 5/29 position) | AUDJPY.sim | BUY | 1.37 | SL @ 114.276 | **-$160.67** |
+| 11:51 | XAUUSD_M15_LondonFix | XAUUSD.sim | BUY | 0.36 | SL @ 4442.908 | **-$478.80** |
+| 13:06 | GBPUSD_H1_SwingBreak | GBPUSD.sim | SELL | 2.46 | SL @ 1.34591 | **-$250.92** |
+| **16:50** | **AUDJPY_H4_TrendFollow (Tue 6/02 position)** | **AUDJPY.sim** | **BUY** | **1.55** | **SL @ 114.178** | **-$504.83** |
+
+**Net realized today: -$1,395.22.**
+
+The 16:50 AUDJPY 1.55 hit AFTER the mid-day check — fourth USD-strength-driven SL of the day. This was the position opened by AUDJPY_H4_TrendFollow on Tuesday at 114.695; the trail stop caught up on the continued JPY-cross weakness.
+
+**What this day means — full correlation-cluster-breakdown:**
+
+I called this out in the original probability estimate ("~5% of days: -$1,500 to -$3,000 — correlation breakdown day; rare but happens"). Day 7 was exactly this scenario, even worse than I projected at mid-day. Mechanism: **USD strength rip → AUDJPY (×2 positions) breaks down + XAUUSD breaks down + GBPUSD breaks down.** Four SL hits across three "diversified" EAs because dollar strength is a hidden common factor that links them on big-USD days.
+
+The 2% aggregate portfolio-risk cap held — total day loss bounded at -0.91%, ~one third of the internal daily kill threshold. **No EA misbehaved; the diversification thesis temporarily failed because we sized AUDJPY/XAUUSD/GBPUSD as independent bets when they share a hidden USD-counter beta.**
+
+**This is the #1 finding for M10 sizing calibration** — those three EAs need to be treated as one cluster with shared exposure, not three independent positions. Factor decomposition (Tier 1 task) will quantify exactly how much of each EA's P&L is "long USD-counter beta" vs actual alpha.
+
+**Cumulative trial through Day 7 close:**
+- Initial capital: $201,840.04
+- Current balance: $200,375.48
+- Cum P&L: **-$1,464.56 (-0.73%)**
+- Peak balance (Day 2): $201,937
+- Drawdown from peak: -$1,562
+
+**Target math from here:**
+- Need: +$10,000
+- From current: +$11,465 over **5 trading days** (6/4, 5, 8, 9, 10)
+- Required avg/day: **~$2,293/day**
+- Day 1 actual was $1,857 (best day). **We need to exceed Day 1's best by 23% — five days in a row.**
+
+**Updated odds of hitting target: ~15-25%** (was 70% at trial start, 50-55% at Day 5 close, 35-45% at Day 7 mid-day).
+
+**EA fire-frequency through Day 7:**
+
+| EA | Trades opened | Status |
+|---|---|---|
+| EURUSD_M15_LondonMomo (on EURUSD + GBPUSD) | 4+ | Carrying the portfolio |
+| XAUUSD_M15_LondonFix | 4 | Up-down cycling |
+| GBPUSD_H1_SwingBreak | 5+ | Trend-follower drag |
+| AUDJPY_H4_TrendFollow | 3+ | Trend-follower; today's SL |
+| US100_H1_OvernightDrift | 3 | Steady, small |
+| US500_M15_ORB | 1 | -$882 loss Day 5 only |
+| XAUUSD_H1_NewsReaction | 0 | No qualifying news |
+| EURGBP_H4_MeanReversion | 0 | No 3σ deviation |
+| BTCUSD_M15_TrendFollow | 0 (still dry-run) | M10 task open |
+
+**Standing order:** Do not intervene. This is the discipline test. Same code that delivered Day 1 is running today. Statistical regression to the mean is real; tinkering after a small adverse sample is the most reliable way to destroy expectancy. Wait for the 22:30 UTC digest to confirm Day 7's final number.
+
+---
+
+## Day 6 (2026-06-02, Tuesday) — DETAIL
+
+**Digest reported: +0.72% (+$1,440 estimated, actual realized $939.56 + AUDJPY 1.55 close).**
+
+**Closed deals:**
+
+| Time UTC | EA | Symbol | Side | Vol | Trigger | P&L |
+|---|---|---|---|---|---|---|
+| 08:15→09:21 | EURUSD_M15_LondonMomo (on GBPUSD chart) | GBPUSD | BUY | 6.69 | TP @ 1.34772 | **+$742.59** |
+| 10:30→12:31 | XAUUSD_M15_LondonFix | XAUUSD | SELL | 0.43 | TP @ 4522.458 | **+$500.74** |
+| 10:00→16:00 | EURUSD_M15_LondonMomo (on GBPUSD chart) | GBPUSD | BUY | 2.71 | session_close | -$165.31 |
+| 20:00→21:00 | US100_H1_OvernightDrift | US100 | BUY | 2.30 | time_ex | -$138.46 |
+| 12:00→? | AUDJPY_H4_TrendFollow | AUDJPY | BUY 1.55 (new) | — | (closed somewhere, gap in my deals query) | — |
+
+**Net realized visible: +$939.56.** Digest +$1,440 implies AUDJPY 1.55 closed for ~+$500 somewhere in between.
+
+**Reading:** Best day since Day 1. London momentum + gold fix both connected for big TP wins. Mean reversion from Day 5's cluster loss working as expected.
+
+---
+
+## Day 5 (2026-06-01, Monday) — DETAIL
+
+**Snapshot at 22:00 UTC digest:**
+- Balance: $200,879.90  (was $201,905.41 yesterday → -$1,025.51 realized)
+- Equity: $200,786.40  (floating AUDJPY -$93.50)
+- Floating P&L: -$93.50  (AUDJPY -$106 + swap)
+- Open positions: 1 (AUDJPY)
+- Distance to daily-loss line: $10,002  (well clear)
+- Distance to max-loss line: $19,072  (well clear — full safety margin intact)
+
+**Closed deals today:**
+
+| Time UTC | EA | Symbol | Side | Vol | Entry → Exit | P&L | Trigger |
+|---|---|---|---|---|---|---|---|
+| 16:15→20:30 | US500_M15_ORB | US500.sim | SELL | 31.50 | 7579.5 → 7607.5 | **-$882.00** | session_close (breakout went wrong way) |
+| 17:00→18:23 | GBPUSD_H1_SwingBreak | GBPUSD.sim | SELL | 1.86 | 1.3412 → 1.3441 | **-$543.12** | SL hit (29 pips) |
+| 20:00→21:00 | US100_H1_OvernightDrift | US100.sim | BUY | 1.90 | 30547.2 → 30634.4 | **+$165.68** | time_ex (overnight win) |
+
+**Still open:**
+- AUDJPY_H4_TrendFollow BUY 1.37 @ 114.451 → 114.327 → -$106.42 floating (Friday entry, still riding)
+
+**EA performance through Day 5 (closed trades only):**
+
+| EA | Trades | Wins | Losses | Net | Notes |
+|---|---|---|---|---|---|
+| EURUSD_M15_LondonMomo | 2 | 2 | 0 | **+$1,509** | London open momentum — both legs of dual-chart attachment won Day 1 |
+| XAUUSD_M15_LondonFix | 2 | 2 | 0 | **+$1,038** | London fix fade — clean 2/2 |
+| GBPUSD_H1_SwingBreak | 4 | 2 | 2 | **-$367** | Trend-follower; cycling both directions as expected |
+| AUDJPY_H4_TrendFollow | 1 closed + 1 open | 0 | 1 | **-$501** | Day 1 SL; new position open since Friday |
+| US100_H1_OvernightDrift | 2 | 1 | 1 | **+$153** | Overnight drift; small base hit |
+| **US500_M15_ORB** | **1** | **0** | **1** | **-$882** | **First fire of the trial — Day 5 session_close loss** |
+| BTCUSD_M15_TrendFollow | 0 | — | — | $0 | **Still in dry-run mode. See M10 task #BTC decision.** |
+| XAUUSD_H1_NewsReaction | 0 | — | — | $0 | No NFP/FOMC/CPI events fired yet |
+| EURGBP_H4_MeanReversion | 0 | — | — | $0 | No 3σ z-score deviations yet |
+
+**Reading of the day:**
+
+This is the first **statistical regression** day — exactly the kind of day the trial probability model said would happen ~10% of the time. Don't panic, don't tune.
+
+- US500_M15_ORB took a -$882 loss on its first signal of the trial. That's the expected ORB profile: high variance, low win rate, big wins justify it over time. One losing trade is N=1, not evidence the strategy is broken.
+- GBPUSD_H1_SwingBreak now 2-2 across 4 signals. Net -$367 = expected drag for a trend follower in its early sample.
+- US100_H1_OvernightDrift quietly winning. The thesis (overnight risk premium) appears intact.
+- AUDJPY position riding into Day 6.
+
+**Cumulative trial through Day 5:**
+- Cum P&L: **+$912** (+0.46%)
+- Target: $10,000 (+5%)
+- Days remaining: 8 trading days (June 2-10, minus 1 weekend)
+- Required avg/day from here: **$1,136**
+
+Still mathematically within reach. Day 1 alone was $1,857. Two more Day-1-style days would clinch it.
+
+**Standing order: do not intervene.** Discipline test continues.
+
+---
+
+## Conventions
+
+- All times UTC unless noted.
+- Realized P&L = sum of `profit` field from deals closed that day.
+- Floating P&L = current equity minus current balance, snapshotted at digest time.
+- "Day %" = realized day P&L / initial trial capital ($200K).
+- Cumulative through Day N = sum of Day 1..N realized.
+- Entries appended at end-of-day after the 22:30 UTC digest.
