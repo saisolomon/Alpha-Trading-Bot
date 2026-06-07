@@ -274,6 +274,65 @@ Two paths to evaluate (log decision in Memory.md):
 - **Scale on FTMO:** add accounts (separate bot instances, no copy trading), pursue scaling plan to higher capital tiers.
 - **Migrate to self-funded:** withdraw FTMO profits as runway, port the bot to NautilusTrader on Interactive Brokers (different engine, different broker, but the strategy IP and risk discipline transfer). MT5 stack retired.
 
+### Milestone 10 — Alpha Factory (post-trial build; live arm gated to post-funded)
+
+> **Origin:** User vision (2026-05-28) — an "alpha twin" that searches for edge 24/7 across the MT5 universe (later Hyperliquid + IBKR), pushes candidates to the main agent, which runs them through the ai-quant-researcher, graduating survivors to live capital in a continuous, self-improving loop.
+>
+> **Verdict:** The vision is correct — this is what a modern systematic shop's research pipeline *is* (Renaissance, Two Sigma, WorldQuant all run automated alpha-discovery factories). But the literal "closed real-time self-improving loop that auto-deploys" is the single most reliable way to incinerate quant capital. We build the **gated quarantine factory**, NOT the closed loop. The difference between those two architectures is the difference between an edge that compounds for years and an automated way to blow up.
+
+#### Sequencing (hard gates)
+- **Searcher + ledger + validator wiring:** post-trial (between challenges). Output = **paper candidates only.**
+- **Paper → live graduation arm:** post-**funded** only. Auto-deploying fresh fits onto an instant-fail account is forbidden until there is real capital discipline and a track record.
+- **24/7 cross-venue (Hyperliquid + IBKR):** post-funded, on the VPS, alongside the Nautilus migration in M9 Path B.
+
+#### Target architecture (quarantine pipeline, not a closed loop)
+
+```
+Searcher  (cheap DETERMINISTIC scans + LLM hypothesis framing)
+      │   every candidate MUST carry an economic rationale — no hypothesis, no pass (CLAUDE.md §2.1)
+      ▼
+Triage vs. Research Ledger   (kill anything already tried/dead; ledger is the real "memory")
+      ▼
+ai-quant-researcher   (deflated Sharpe, walk-forward, purged CV)   ← INDEPENDENT, never co-optimized with searcher
+      ▼
+PAPER quarantine   (fixed minimum live-OOS period, weeks, on data the searcher NEVER saw)
+      ▼
+Independent / human gate   (explicit deployment ack)
+      ▼
+LIVE   (tiny size, decorrelation requirement, full FTMO risk gates from CLAUDE.md §3)
+```
+
+#### The three killers (why the naive closed loop dies) — DOCUMENTED SO WE DON'T REBUILD THE TRAP
+
+1. **Industrial-scale multiple comparisons.** Searching "all markets 24/7" *manufactures* false positives — breadth is the machine that produces garbage that looks like gold. Deflated Sharpe penalizes this, but against an unconstrained searcher the penalty explodes toward "nothing is significant." **Discipline is constraining the search, not maximizing it.** The instinct "search everything" is in direct tension with statistical validity.
+
+2. **Goodhart / validator-gaming.** Close the loop and the searcher stops finding edge and starts finding *weaknesses in the validator*. When the metric becomes the target it ceases to be a good metric. **The validator must remain adversarial and independent — never in the searcher's optimization loop.**
+
+3. **Non-stationarity / deploy-at-the-peak.** A freshly-mined strategy is fitted to the regime that just ended. "Real-time deploy" = go live at maximum overfit. **Paper-first graduation is what defuses this** — the strategy must earn a real out-of-sample track record before any capital.
+
+#### Non-negotiable design rules
+- **Strict data partition:** search set / validation set / true OOS the searcher never touches. Violate once and the pipeline is theater.
+- **Paper-first graduation:** no capital without a real OOS paper record.
+- **Independent validator:** adversarial, never co-optimized.
+- **Decorrelation over Sharpe-max:** new strategies must be *uncorrelated* to the live book (diversification = the one free lunch, CLAUDE.md §9). Don't chase raw Sharpe.
+- **LLM in the right seat:** an LLM is a *bad* brute-force searcher (slow, expensive, hallucinates edge) and a *good* hypothesis-framer/critic. Deterministic code does the scanning; the LLM asks "why would this exist?" and "has this already failed?"
+- **Search ≠ execution:** the searcher can run anywhere (cloud/local); only execution needs the low-jitter always-on box. Keep them separable — this is also why the VPS lives on the execution side, not the searcher side.
+
+#### Reality check on "self-improving / learn from each other"
+Two LLMs exchanging strategies does **not** update the models — there is no training, no gradient, no emergent intelligence from the bots "talking." What *does* compound:
+1. the **research ledger** (what's been tried/killed/why), and
+2. the **live track record** (paper + small-size live).
+
+Architect for those two real forms of improvement; do not design around the mystical version.
+
+#### Acceptance criteria for M10 components
+- **Searcher:** runs a fixed schedule across a defined universe; outputs candidate-strategy JSON records to the research ledger with hypothesis text, signal logic, parameter ranges, asset class, expected holding period.
+- **Research ledger:** append-only, queryable, deduplicates against prior trials (no re-testing dead ideas).
+- **ai-quant-researcher integration:** every candidate run through deflated-Sharpe + walk-forward + purged CV; FAIL is final unless the candidate is materially restructured (logged as a new entry).
+- **Paper quarantine:** minimum N-week live-OOS clock, configurable per asset class, ZERO live capital exposure.
+- **Live graduation gate:** explicit user ack required; the gate enforces decorrelation against the live book (e.g. |rolling-60d-corr| < 0.5 with every live strategy) and a tiny default size (e.g. 25% of standard per-trade risk for the first month).
+- **No silent killing or auto-promotion:** every state transition (born / triaged-out / validated / paper-passed / graduated / killed) is logged with reason. The pipeline is observable end-to-end.
+
 ---
 
 ## 11. Open Architectural Questions
@@ -290,6 +349,32 @@ These are unresolved decisions. Track and resolve as the project progresses. Do 
 
 ## 12. Current Phase
 
-**Milestone 0 — Foundations.** Active.
+**Milestone 6 — FTMO Challenge — LIVE TRIAL, Day 1 of 7. Observation mode. Hands off.** (Updated 2026-05-28.)
 
-Next concrete step: see `Tasks.md`.
+- **Account:** OANDA-Demo-1 (FTMO trial backend), login `1600138423`, $200k, `CHALLENGE_2STEP_PHASE1`.
+- **Symbols:** OANDA universe, `.sim` suffix.
+- **State:** First real trade fired — GBPUSD_H1_SwingBreak SELL 1.83 lots @ 1.3413 (~0.25% risk, 1.2% margin utilization). Trial clock running.
+
+**What is live right now:** 10 EAs + BotOrchestrator on a single account (multi-timeframe diversification across M15/H1/H4):
+
+| EA | TF | Mechanism | Exit |
+|---|---|---|---|
+| US500_M15_ORB | M15 | Opening-range breakout (Crabel) | Fixed TP 2R + session flat |
+| EURUSD_M15_LondonMomo | M15 | London-open momentum (symbol-agnostic; EURUSD + GBPUSD charts) | Time/session + ATR stop |
+| EURUSD_M15_RSIFade | M15 | RSI mean-reversion (attached to USDJPY chart) | RSI re-cross 50 / ATR stop |
+| XAUUSD_M15_LondonFix | M15 | Gold pre-fix fade | Fix-time exit / 1R stop |
+| BTCUSD_M15_TrendFollow | M15 | 24/7 Donchian breakout | Trailing stop, no TP |
+| GBPUSD_H1_SwingBreak | H1 | Donchian breakout (Turtle) | Trailing stop (1.5×ATR), no TP |
+| AUDJPY_H4_TrendFollow | H4 | Donchian breakout | Trailing stop, no TP |
+| XAUUSD_H1_NewsReaction | H1 | NFP/FOMC/CPI continuation | Fixed TP 2R + 4h time stop |
+| EURGBP_H4_MeanReversion | H4 | Z-score cointegration | Z→0 exit / 3σ stop |
+| US100_H1_OvernightDrift | H1 | Overnight risk premium (long-only) | Time exit at NY open |
+
+**Standing order during the trial:** Do not add strategies, tune parameters, or refactor while the trial is running. The trial is the highest-EV item on the board; protect it. Only act on a break or an explicit user request. Daily digest 22:30 UTC is the primary monitoring surface.
+
+**Decided 2026-05-28, captured here so we don't drift:**
+- **VPS:** local 24/7 machine is sufficient for the trial. Do NOT migrate mid-trial. Migrate to a cheap generic Windows VPS (Contabo / Vultr ~$11–25/mo, 2 vCPU / 4 GB, EU region near OANDA) **before** the real funded challenge. forexvps.net is overkill — its premium is broker-latency, irrelevant at M15/H1/H4.
+- **Scalping / HFT:** NOT pursued. Structural, likely permanent while on MT5/retail rails — no trustworthy L2 depth, retail-grade latency, dealer spreads eat the entire edge (GBPUSD showed ~2.5 pips spread on one swing trade — fatal to a 3-pip target), FTMO rules hostile to high frequency. Our edge thesis is *defensible, explainable* alpha that survives on retail infra precisely because it lives on M15–H4. Reconsider only post-funded, off-MT5, with real book data and a specific microstructure hypothesis.
+- **ai-quant-researcher integration:** deferred to post-trial. Validation machinery needs a meaningful sample to be useful; adding it during a 7-day live trial dilutes the trial and introduces engineering risk on the live account.
+
+**Next concrete step:** see `Tasks.md` — but the immediate next action is *no action*. Observe through Day 7. Post-trial work starts with the M1-style hardening list (richer per-EA digest, SafeFillingMode helper, ai-quant-researcher integration on realized data) and the M10 Alpha Factory build.
