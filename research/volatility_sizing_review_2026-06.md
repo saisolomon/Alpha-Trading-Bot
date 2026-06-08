@@ -186,12 +186,12 @@ A full course/book. Introduces Relative Moving Average (RMA) — a moving averag
 
 ## How this maps to existing plans
 
-- **M10 #2 (sizing calibration) — UPGRADE.** Currently specced with classical fractional Kelly. The batch says: (a) correlation-aware risk-parity (Baltas) instead of independent-asset inverse-vol, (b) Bayesian Kelly cold-start shrinkage (Sukhov), (c) recovery-constrained Kelly (Lee, FTMO-shaped). These are concrete method upgrades, not new tasks.
+- **M10 #2 (sizing calibration) — UPGRADED IN Tasks.md 2026-06-08.** Classical fractional Kelly was the floor; the task now mandates (a) Bayesian Kelly cold-start shrinkage (Sukhov), (b) recovery-constrained Kelly cap (Lee, FTMO-shaped), (c) correlation-aware equal-risk-contribution + Yang-Zhang vol estimator (Baltas) instead of independent inverse-vol. Acceptance criteria updated.
 - **M10 #1 (post-mortem factor decomposition) — REINFORCED.** Baltas correlation work + Harvey asset-class dependence back the cross-asset-correlation premise.
-- **M10 backtest harness — TEMPLATE FOUND.** Forecast-to-Fill Gold (2511.08571) is a worked example of walk-forward + Kelly + ATR + cost + SPA. Copy its structure.
-- **M10 barbell-timeframe test — REINFORced.** Shi-Lian: time scale matters more than indicator.
-- **NEW candidate (not yet a task): vol-targeting overlay** — adopt portfolio-wide, downside-vol, conditional on extreme states, justified by FTMO tail-control. Worth a dedicated M10 Tier 2 task post-trial.
-- **NEW candidate (not yet a task): Hurst-regime gate** for trend EAs. Test post-trial.
+- **M10 backtest harness — TEMPLATE ADDED to Tasks.md 2026-06-08.** Forecast-to-Fill Gold (2511.08571) named as the structural blueprint (walk-forward + Kelly + ATR + cost + SPA); acceptance now requires a bootstrap/SPA significance column.
+- **M10 barbell-timeframe test — REINFORCED.** Shi-Lian: time scale matters more than indicator.
+- **NEW TASK added to Tasks.md M10 Tier 2 2026-06-08: vol-targeting overlay** — portfolio-wide, asset-class-aware (Sharpe for equity indices, FTMO tail-control for FX/gold), downside-vol, conditional on extreme states.
+- **NEW TASK added to Tasks.md M10 Tier 2 2026-06-08: Hurst-regime gate** — candidate research, test-before-build, gates trend EAs to persistent (H>0.55) regimes.
 - **M11 regime detection — candidate methods identified** (Hurst, HMM, hysteresis).
 
 ---
