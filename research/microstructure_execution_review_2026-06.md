@@ -134,6 +134,30 @@ Originally unreadable (image-only PDF); recovered via PyMuPDF render → vision 
 
 ---
 
+## Phase A vs Phase B applicability (the deployment-reality split)
+
+**"Actively funded" is two phases with totally different constraints. Most of this library is Phase B, not Phase A. Do not let the volume of market-making papers create pressure to deploy them on MT5 — that's the scalping/HFT trap documented as off-limits in Planning.md (2026-05-28).**
+
+### Phase A — FTMO funded, still on MT5 / OANDA (immediately post-trial)
+Retail rails: no trustworthy L2 depth, dealer spreads, retail latency. **The MM/HFT papers are NOT deployable here at all.** Only the FX-microstructure cluster applies, and it *informs the existing EAs* rather than creating new strategies.
+
+| Paper | Phase A use |
+|---|---|
+| #15 Chaboud-Rime-Sushko (2023) | ✅ **Strongest.** Cross-asset correlation is structural in modern FX → backs M10 factor-decomposition + USD-cluster sizing. Day-7 cluster loss IS this thesis. Flags FX-fixing pathology for XAUUSD_M15_LondonFix. |
+| #10 Atha-Bolla (2022) | ✅ Defensive. What NOT to build (no deep learning, no news sentiment). |
+| #11 Sarno-Taylor / #13-#14 King-Osler-Rime | 🟡 Context. Validate that short-run FX is flow/technical-driven. No new signal. |
+| #12 Evans (order flow) | 🟡 Speculative. Tick-volume-imbalance filter idea; retail tick vol is a poor proxy. Flag, don't build. |
+| #19 Westerhoff | 🟡 Context. Why technical rules persist. |
+| All of Cluster A (#1-7), Cluster B (#8-9) | ❌ **Not deployable.** Require a real order book. Wait for Phase B. |
+| Cluster D macro (#16-18, #20) | ❌ Context only, no code in them, ever. |
+
+**Phase A reality: 1 genuinely actionable paper (#15), 1 defensive (#10), rest context. ZERO new strategies from this library.** The MM papers are dead weight on MT5.
+
+### Phase B — self-funded crypto, post-FTMO, Nautilus + Hyperliquid/Bybit (real LOB)
+This is the actual home of what was downloaded. Cluster A unlocks fully. See the M11 ranking below.
+
+---
+
 ## What's genuinely actionable — ranked
 
 ### For the current FX EAs (near-term, M10-adjacent — but NOT during the trial)
