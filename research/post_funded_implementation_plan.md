@@ -119,6 +119,7 @@ COLD PATH (hours – days)                  | Engine: Cron + durable execution
 **Cron is correct for the cold path.** Don't event-drive a daily digest (Convex's daily-report cron is the right shape). Don't cron-poll a position update (5-min polling adds latency for nothing). The migration plan honors this: most existing Convex crons (heartbeat-staleness, daily-report, correlation-monitor) stay as crons; the polling-based parts (5-min Python monitor, hourly git push) get replaced by event-driven equivalents.
 
 ### Pre-Nautilus interim upgrades (FTMO funded, still on MT5)
+> **Wired into Tasks.md M10 Tier 1 (2026-06-08)** as "Phase-A event-driven upgrades" — the three sub-items below are now committed tasks, not just plan text.
 
 While we're still on MT5 + OANDA with real funded capital but **before** Nautilus migration begins, three pragmatic event-driven upgrades that don't require ripping out the stack:
 

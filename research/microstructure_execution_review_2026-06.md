@@ -180,9 +180,10 @@ This is the actual home of what was downloaded. Cluster A unlocks fully. See the
 
 ## How this maps to existing plans (no new milestones — extends what exists)
 
-- **M11 `post_funded_implementation_plan.md`:** add market-making as an explicit strategy class for the Hyperliquid/Bybit execution venues. The 5 MM papers above are the reading list for the first crypto-MM strategy. **MM is a NEW strategy type for us** (we've only done directional so far) — it goes through the full CLAUDE.md §4 pipeline (hypothesis → backtest → paper → 25% live) like any other, and it needs a real LOB so it's strictly post-Nautilus.
-- **M11 regime-detection (deferred):** the Cartea-Jaimungal HMM (A6) is a concrete method candidate.
-- **M10 factor decomposition:** Chaboud 2023 (C5) is academic backing for the cross-asset-correlation premise. No new task.
+- **M11 crypto market-making — TASKS ADDED to Tasks.md 2026-06-08.** Two tasks now in M11 off-MT5 section: (1) first crypto market-maker (Avellaneda-Stoikov baseline, full §4 pipeline), (2) short-term-alpha / adverse-selection guard (the Cartea-Jaimungal-Ricci survival requirement). MM is a NEW strategy type for us; strictly Phase B (real LOB, post-Nautilus).
+- **M11 regime detection — TASK ADDED to Tasks.md 2026-06-08.** Regime-detection module (HMM per Cartea-Jaimungal A6 + Hurst + hysteresis), dual-use for crypto-MM quoting and Alpha-Factory candidate evaluation.
+- **M10 factor decomposition:** Chaboud 2023 (C5) is academic backing for the cross-asset-correlation premise. Already in M10 #1.
+- **M10 cost-model — EURGBP cointegration-stability sub-bullet ADDED 2026-06-08** (cross-referenced from academic_review #7).
 - **academic_review_2026-06.md:** the Atha-Bolla negative DL finding is already there; this doc covers the other 19.
 
 ## Open items / honesty flags

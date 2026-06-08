@@ -349,6 +349,14 @@ Captured 2026-05-30 mid-trial as the user asked for the persisted backlog. Order
 - [ ] **`SafeFillingMode` helper in QuantLib.mqh.** Query `SymbolInfoInteger(symbol, SYMBOL_FILLING_MODE)` at runtime and pick FOK / IOC / RETURN based on broker capability. Replaces the hardcoded FOK currently in every EA. Prevents the class of bug that nearly killed Day 1 (IOC mismatch).
   *Acceptance:* All 10 EAs switched from hardcoded `ORDER_FILLING_FOK` to `SafeFillingMode(_Symbol)`. Manual test on OANDA-Demo-1 confirms orders fill.
 
+- [ ] **Phase-A event-driven upgrades (MT5-native, while still on FTMO/OANDA).** Origin: `research/post_funded_implementation_plan.md` hot/warm/cold-path section. These tighten latency on the FUNDED account without waiting for the Nautilus migration — all three use MT5-native event callbacks, no new stack. Three sub-items:
+  - [ ] **`OnTradeTransaction` handler in every EA.** Today EAs detect closed positions by polling `if(g_open_ticket != 0 && !PositionSelect(_Symbol))` on each new bar — up to 15 min late on H4. `OnTradeTransaction` fires the instant a fill/SL/close happens. **This also closes the EA broker-state-recovery bug above** by reacting to the event instead of polling for it. Combine the two tasks.
+    *Acceptance:* All 10 EAs handle `OnTradeTransaction`; position-state changes reflected within one tick, not one bar; restart-recovery test passes.
+  - [ ] **`EquityWatchdog.mq5` with `OnTimer(1s)`.** CLAUDE.md §3 mandates sub-second equity monitoring; today `libftmorisk` runs inside `OnTick` which is sparse in quiet markets. A standalone EA polling `AccountInfoDouble(ACCOUNT_EQUITY)` every second on a 1-sec timer = true sub-second protection of the FTMO daily line, independent of any chart's tick stream. Flattens all + halts on internal-kill breach.
+    *Acceptance:* `EquityWatchdog.mq5` runs on its own chart; synthetic equity-drop test trips the kill within 1 second; independent of per-EA tick flow.
+  - [ ] **OANDA webhook → Convex HTTP action (replaces 5-min polling).** OANDA position-change webhook → Convex HTTP action → ~100ms telemetry latency vs up to 5 min today. **Keep** the cron heartbeat-staleness check as the "did the webhook stop?" watchdog (event-driven for the hot signal, cron for the watchdog-of-the-watchdog).
+    *Acceptance:* Position changes land in Convex in <1s via webhook; the 5-min Python poll is demoted to backup; heartbeat-staleness cron still fires if webhooks stop.
+
 - [ ] **BTCUSD_M15_TrendFollow EA decision.** Two bugs found mid-trial 2026-05-31: (a) still in `InpDryRun = true` mode — never flipped live, has placed zero real broker orders; (b) OANDA's `BTCUSD.sim` is NOT 24/7 — last tick Fri 23:58:59 UTC, closed all weekend. The EA's whole header thesis ("24/7 trading = more bars than any other strategy") is invalidated on this broker. Decide between three options:
   1. **Flip to live, keep on OANDA** as a regular weekday Donchian breakout EA — loses the 24/7 thesis but might still produce signals.
   2. **Kill it and retire the `.mq5` file** from the repo + manifest.
@@ -393,6 +401,8 @@ Captured 2026-05-30 mid-trial as the user asked for the persisted backlog. Order
   *Acceptance:* `NewsBlackout.mqh` exposes `IsNewsBlackout` with the same signature; internally it calls Calendar API, falls back to the hardcoded list on failure. Unit test verifies fallback path.
 
 - [ ] **Per-EA cost-model refinement.** Use observed trial spread + slippage to update each EA's cost assumptions in its file-header comment. Re-run backtests with realistic costs. Kill anything that doesn't survive.
+  - **EURGBP_H4_MeanReversion cointegration-stability check** (per `research/academic_review_2026-06.md` #7, Gatev-Goetzmann-Rouwenhorst + the Yale 2024 / Springer 2025 decay updates). Pairs trading has decayed sharply post-2002; the pair must *stay* cointegrated, not just have been historically. Add a rolling Engle-Granger or Johansen test with a freshness window — if cointegration stability drops below threshold, **pause** the EA rather than just resize. Note: EURGBP_H4_MeanReversion never fired during the trial (no 3σ deviation), so there is no realized data to calibrate against yet — address only if the EA is kept after the Tier-2 bootstrap check.
+    *Acceptance:* EURGBP EA gains a rolling-cointegration freshness gate; backtest shows it pauses during decoupling windows; documented keep/kill decision if the pair fails the stability test.
   *Acceptance:* Each EA's header lists observed-vs-assumed spread; backtest report includes both numbers; any EA whose Sharpe goes negative at observed costs is removed from manifest.
 
 - [ ] **Barbell timeframe test — drop the H1 layer?** Origin: `research/academic_review_2026-06.md` paper #2 (arxiv 2510.23150v2, Oct 2025). The paper's central finding: **medium-horizon trend signals (~125 days) add little incremental value once short + long are included** — the medium horizon "largely overlaps with its neighboring horizons" (redundancy hiding as diversification). Our portfolio has 3 H1 EAs (GBPUSD_H1_SwingBreak, XAUUSD_H1_NewsReaction, US100_H1_OvernightDrift) sitting between M15 short-horizon EAs and the H4 long-horizon EA. The 2025 paper suggests these may be near-redundant. Test this directly with trial data.
@@ -582,6 +592,21 @@ Each phase adds ONE component, validates, then moves on. Resist landing everythi
 
 - [ ] **24/7 multi-venue execution + Alpha Factory feeding it.** Searcher now covers IBKR + Hyperliquid + remaining FTMO. VPS is permanent execution box; searcher can run anywhere.
   *Acceptance:* At least one Alpha-Factory-graduated strategy is running live on a non-MT5 venue.
+
+### Crypto market-making strategy class (post-Hyperliquid/Bybit; NEW strategy type)
+
+> Origin: `research/microstructure_execution_review_2026-06.md` Cluster A. Market-making is a **fundamentally new strategy type for us** — we have only ever run directional strategies. It requires a real limit order book, so it is strictly Phase B (Hyperliquid/Bybit, post-Nautilus). It goes through the full CLAUDE.md §4 pipeline like any other strategy. **Read the 5 papers in full at build time** (the review is triage depth only).
+
+- [ ] **First crypto market-maker (Avellaneda-Stoikov baseline).** Build the foundational quoting strategy on the `hyperliquid-exec` / `bybit-exec` box. Reservation price `r = s − q·γ·σ²·(T−t)` skewing quotes against inventory; optimal spread `δ = γσ²(T−t) + (2/γ)ln(1+γ/k)`. Paper-trade first per CLAUDE.md §10. Reading order at build time: Avellaneda-Stoikov (#1) → Cartea-Jaimungal-Ricci Hawkes (#4/5) → Fodra-Pham adverse selection (#3) → Guilbaud-Pham limit-vs-market (#2).
+  *Acceptance:* `strategies/crypto_mm/HYPOTHESIS.md` + paper-traded MM quoting on one crypto perp, inventory bounded, full §4 pipeline (hypothesis → backtest → paper → 25% live). Reconciliation matches venue statements.
+
+- [ ] **Short-term-alpha / adverse-selection guard (the survival requirement).** Per Cartea-Jaimungal-Ricci (#4/5): *a market-maker that does not predict short-term-alpha gets adversely selected and driven out.* The MM MUST fold a directional order-flow-toxicity / short-term-alpha predictor into its quoting (this is the bridge from our existing signal skill to MM). Model order-book imbalance / influential-vs-noninfluential market orders.
+  *Acceptance:* The MM strategy's quoting skews on a short-term-alpha estimate; backtest shows reduced adverse-fill rate vs the naive A-S baseline. Without this, the MM is NOT cleared for live capital.
+
+### Regime detection (Alpha Factory + crypto MM quoting)
+
+- [ ] **Regime-detection module (HMM + Hurst).** Origin: `research/microstructure_execution_review_2026-06.md` A6 (Cartea-Jaimungal HMM intraday regimes) + `research/volatility_sizing_review_2026-06.md` Cluster 5 (Hurst, RADIANT hysteresis). Dual use: (a) conditions crypto-MM quoting on the intraday regime, (b) feeds the Alpha Factory's regime-aware candidate evaluation, (c) generalizes the M10 Hurst-gate experiment if it succeeded. Methods: Hidden Markov Model on trade-duration / vol states (Cartea-Jaimungal), Hurst-exponent classification (persistent/neutral/anti-persistent), sticky-transition hysteresis to avoid whipsaw (RADIANT). Skip the deep-learning architectures (reproducibility risk) — use the classical statistical core.
+  *Acceptance:* A regime classifier emits {trending, mean-reverting, transitional} + confidence on M15+ bars; backtested to show strategies conditioned on it beat their unconditional versions; exposed as a service the MM and the searcher can both query.
 
 ---
 
