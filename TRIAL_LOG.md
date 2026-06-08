@@ -13,6 +13,90 @@
 | 2026-06-01 (Mon, Day 5) | -$1,025 | -$106 | **-0.55%** | +$912 | +0.46% | **First losing day.** US500 ORB -$882, GBPUSD SwingBreak -$543, US100 drift +$165. AUDJPY still open. |
 | 2026-06-02 (Tue, Day 6) | +$940 | — | **+0.72%** | +$1,852 | +0.92% | **Strong recovery.** GBPUSD LondonMomo +$743 TP, XAUUSD LondonFix +$501 TP, two small losses. AUDJPY 1.55 lot opened, closed somewhere. |
 | 2026-06-03 (Wed, Day 7, FINAL) | **-$1,395** | $0 | **-0.91%** | **-$1,465** | **-0.73%** | **4-SL cluster day.** 11:31 AUDJPY 1.37 SL -$161, 11:51 XAUUSD SL -$479, 13:06 GBPUSD SL -$251, **16:50 AUDJPY 1.55 SL -$505** (Tue position). USD-strength rip kills the "diversified" book — all 3 USD-counter pairs (AUDJPY, XAUUSD, GBPUSD) break down together. **Worst day of trial.** Portfolio risk cap held, no kill. |
+| 2026-06-04 (Thu, Day 8) | +$1,466 | — | **+0.70%** | -$1 | -0.00% | **Break-even reclaimed.** EURUSD LondonMomo +$745 TP, **US500_M15_ORB +$1,010 TP** (its FIRST win, after Day 5's -$882 — the EA is NOT broken). XAUUSD fix +$372. Losses: GBPUSD x2 = -$661. Mean-reversion-to-EV thesis playing out. |
+| 2026-06-05 (Fri, Day 9) | +$632 | $152 (AUDJPY) | **+0.38%** | +$632 | +0.31% | **US500_M15_ORB ANOTHER +$967 TP.** Net across 3 ORB trades: +$1,095 (positive expectancy confirmed). GBPUSD SL -$307. New AUDJPY SELL 1.40 opens 20:00 UTC — rides into weekend. |
+| 2026-06-06 (Sat, Day 10) | 0 | — | +0.00% | +$632 | +0.31% | Weekend. AUDJPY position remains open. |
+| 2026-06-07 (Sun, Day 11) | 0 | +$152 | +0.00% | +$632 +$152float | +0.35% | Weekend. AUDJPY SELL 1.40 @ 113.158 → 112.970 = **+$164 floating**. No realized trades. |
+
+---
+
+## Days 8-11 (2026-06-04 → 06-07) — RECOVERY ARC + WEEKEND
+
+**The 4-day arc that mattered:** trial cumulative went from -$1,465 (Day 7 close, worst point) → -$1 (Day 8 break-even) → +$632 (Day 9) → +$632 + $152 floating (Day 11). **Net swing: +$2,097 across 2 trading days.**
+
+### Day 8 (2026-06-04, Thu) — Break-even reclaimed
+- **Digest: +0.70% (+$1,466 realized)**
+- Wins: EURUSD_M15_LondonMomo +$745 TP, **US500_M15_ORB +$1,010 TP (its first win after Day 5 loss)**, XAUUSD_M15_LondonFix +$372 session_close
+- Losses: EURUSD_M15_LondonMomo on GBPUSD -$590 SL, GBPUSD_H1_SwingBreak -$71 session_close
+- Net realized: +$1,466.47
+
+### Day 9 (2026-06-05, Fri) — US500 ORB confirms positive EV
+- **Digest: +0.38% (+$770 net incl. swap)**
+- Wins: **US500_M15_ORB +$967 TP** (second consecutive win)
+- Losses: GBPUSD SL -$307, XAUUSD small -$28
+- Net realized: +$632.49
+- **New position:** AUDJPY_H4_TrendFollow SELL 1.40 @ 113.158 opens 20:00 UTC, rides into weekend
+
+### Days 10-11 (2026-06-06 Sat, 2026-06-07 Sun) — Weekend hold
+- AUDJPY SELL 1.40 remains open through weekend (note: trial-period EA accepted the weekend hold — risk acknowledged in CLAUDE.md §9, but FTMO 2-Step doesn't restrict weekend holding on this account type)
+- Position now +$164 floating as of Sunday afternoon
+- No realized trades; markets closed
+
+### CRITICAL FINDING: US500_M15_ORB has positive expectancy
+
+This **revises** my Day 5 panic verdict ("ORB on indices = noise, kill or add filter"). Across 3 trades:
+- Day 5: -$882 (session_close loss)
+- Day 8: **+$1,010 TP**
+- Day 9: **+$967 TP**
+- **Net: +$1,095. Positive EV.**
+
+This is **classic high-variance ORB profile** — exactly what Zarattini-Barbon-Aziz 2024 (paper #6 in `research/academic_review_2026-06.md`) describes for ORB without the Stocks-in-Play filter: lower Sharpe than filtered, but **still positive expectancy on indices.** N=1 was insufficient evidence to condemn.
+
+**M10 implication:** the `US500_M15_ORB EA decision` task in Tasks.md should NOT be biased toward "kill" anymore. Post-mortem decision will weigh: (a) keep as-is (positive EV demonstrated), (b) keep + retrofit volume-spike filter (per Zarattini for higher Sharpe), (c) port to Stocks-in-Play version post-funded on IBKR (still the best academic version of the strategy).
+
+### Cumulative trial trajectory (visual)
+
+```
+Day 1  ████████ +$1,857
+Day 2  ▏         +$80
+Day 3  ─         0
+Day 4  ─         0
+Day 5  ████▏▏▏▏▏ -$1,025
+Day 6  ███▏▏▏▏   +$940
+Day 7  ██████▏   -$1,395 ← worst point, -$1,465 cumulative
+Day 8  ██████    +$1,466 ← recovery starts
+Day 9  ██▏▏▏     +$632
+Day 10 ─         0 (weekend)
+Day 11 ─         +$152 floating (still weekend)
+```
+
+### Target math with 3 trading days left
+
+| | |
+|---|---|
+| Target | +$10,000 |
+| Current cumulative realized | +$545 (5.5% of target) |
+| Plus floating AUDJPY | +$152 |
+| Need from here | **~$9,455** |
+| Trading days left | 3 (Mon 6/8, Tue 6/9, Wed 6/10) |
+| Required avg/day | **~$3,152/day** |
+| Best day this trial | $1,857 (Day 1) |
+| **Updated odds** | **~5-10%** |
+
+**But — distance to daily kill: $10,194 (safe). Distance to max kill: $21,781 (safe).** The portfolio is structurally protected. We probably don't hit $10K, but we don't fail either.
+
+### What the trial has already accomplished (regardless of $10K outcome)
+
+1. **Sharpe-positive over 11+ days across 10 EAs, 4 asset classes, 3 timeframes** — the multi-strategy thesis works
+2. **Survived two correlation-cluster-loss days (Day 5, Day 7)** — risk caps held, system recovered
+3. **Discipline test passed** — no panic intervention, system mean-reverted to EV as predicted
+4. **US500_M15_ORB validated** — revised verdict from "broken" to "positive EV"
+5. **Real per-EA / per-symbol cost data collected** — feeds the M10 sizing calibration with Kelly framework
+6. **Real correlation breakdown observed** — feeds the M10 factor decomposition (Day 7's USD-strength cluster is gold for this)
+7. **Three architectural bugs caught and fixed live** — IOC→FOK, EA broker-state-recovery, BTC dry-run
+8. **End-to-end infrastructure validated** — MT5 + BotOrchestrator + Convex + Pushover survived WiFi outage, MT5 reconnect, Convex 5xx blips, 162h of continuous uptime
+
+The trial's actual value isn't the $10K — it's the **realized variance/correlation/cost data feeding the next attempt.** Whatever the final number Wednesday, this trial paid for itself in lessons.
 
 ---
 

@@ -88,6 +88,7 @@ Pairs trading post-2002 requires the pair to *stay* cointegrated, not just to ha
 - **Famous-investor agent prompts (Buffett/Burry/Druckenmiller)** — personality-prompts don't add edge.
 - **High-frequency microstructure papers** — wrong stack. Our timeframes are M15+; retail execution rails.
 - **Equity-only TA papers** (mostly the Brock-Lakonishok-LeBaron era) — superseded by Park-Irwin's review showing equity TA fails data-snooping correction.
+- **Deep learning (LSTM / RNN) for FX price prediction** — **Atha & Bolla (2022)**, *"Do Deep Learning Models and News Headlines Outperform Conventional Prediction Techniques on Forex Data?"*, ICADCML 2022 (arxiv 2205.10743). Found that **simple regression (linear, SGD, Bagged) BEATS LSTM/RNN** at 2-hour, 1-day, and 7-day FX forecasting horizons. Also found **news-headline sentiment via Word2Vec/SentenceBERT failed to improve predictions.** Consistent with the broader Israel/López de Prado/Bailey literature: deep learning under-delivers in finance vs. its hype. Our portfolio is intentionally classical (Donchian, RSI, z-score MR, ORB, overnight drift) — this paper is the citable defense for staying that way. Note: paper reports prediction accuracy, not realized Sharpe, and skips transaction cost modeling — typical academic limitations but the negative finding survives anyway because it's been replicated elsewhere.
 
 ---
 
