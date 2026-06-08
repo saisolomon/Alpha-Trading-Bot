@@ -31,7 +31,7 @@
 | 17 | c6829 | **Mussa (1984, NBER)** — Theory of Exchange Rate Determination | FX macro | context only |
 | 18 | S42 | **Isard (1978, Princeton)** — Exchange-Rate Determination survey | FX macro | context only (dated) |
 | 19 | 2009_Pbl_Westerhoff | **Westerhoff (2009)** — Exchange rate dynamics: a nonlinear survey | FX behavioral | **current FX EAs** |
-| 20 | w1112 | **UNREAD — image-only PDF, needs OCR** | unknown | unknown |
+| 20 | w1112 | **Levich (1983)** — Empirical Studies of Exchange Rates: Price Behavior, Rate Determination & Market Efficiency (NBER) | FX macro/efficiency | context only (dated) |
 
 ---
 
@@ -124,6 +124,10 @@ Asset-price view of exchange rates; overshooting in response to monetary shocks.
 Bretton-Woods-era survey of FX views. **Heavily dated (1978, pre-floating-era maturity).** Historical interest only.
 **Applicability:** None actionable. Skip.
 
+### D5. Levich (1983, NBER w1112) — Empirical Studies of Exchange Rates [OCR-recovered 2026-06-08]
+Originally unreadable (image-only PDF); recovered via PyMuPDF render → vision read. Levich survey of (a) exchange-rate price behavior, (b) rate determination under the asset-market approach, (c) **market efficiency**. Abstract's central tension: *"Several recent studies claim that speculative profit opportunities are present, but it is unclear whether these are related to risk premiums or actual market inefficiencies."* — the classic 1980s unresolved efficiency/risk-premium debate.
+**Applicability:** Context only, and **dated (1983, pre-microstructure-revolution).** Its market-efficiency conclusions are superseded by Park-Irwin (2007, in academic_review) and Sarno-Taylor (2001, C1). The "is it a risk premium or an inefficiency?" question it raises is, notably, the same question our whole project answers operationally: we don't care which it is as long as the edge is real, persistent, and survives costs. Historical interest; no new signal.
+
 ### D4. Westerhoff (2009) — Exchange rate dynamics: a nonlinear survey
 **More interesting than the other macro papers.** Surveys **chartist-fundamentalist agent-based models**: FX moves are driven by interaction of boundedly-rational speculators using BOTH technical and fundamental rules. Key mechanism: when price is near fundamental value, traders switch to technical analysis (driving price away); when misalignment is large, they switch to fundamentals (pulling it back) → endogenous complex cycles.
 **Applicability:** This is a *theoretical foundation for why technical trading rules persist and are self-sustaining* — the chartist share of the market is endogenous and never goes to zero. Mild support for our technical EAs' durability. Also a conceptual model for regime-switching (technical-dominated vs fundamental-dominated regimes) that connects to the HMM regime work in A6.
@@ -158,8 +162,8 @@ Bretton-Woods-era survey of FX views. **Heavily dated (1978, pre-floating-era ma
 - **academic_review_2026-06.md:** the Atha-Bolla negative DL finding is already there; this doc covers the other 19.
 
 ## Open items / honesty flags
-- **w1112.pdf is UNREAD** (image-only, needs OCR). If it matters, it needs an OCR pass (Tesseract or a cloud OCR) — not available in this environment. By NBER number it's an old (~1980s) working paper; likely another FX-economics piece, but I will NOT guess its content.
-- **w8116 (Evans)** identified via decoded header; abstract/conclusion not cleanly extracted (glyph-encoded body). Identity is certain; detailed findings are from my read of the Evans-Lyons literature line, flagged as such.
+- **w1112.pdf RESOLVED 2026-06-08.** Was image-only/unreadable; recovered via PyMuPDF page-render → vision read of pages 1-2. Confirmed: Levich (1983) FX-efficiency survey, Cluster D context-only. No longer an open item.
+- **w8116 (Evans)** identified via decoded header; abstract/conclusion not cleanly extracted (glyph-encoded body). Identity is certain; detailed findings are from my read of the Evans-Lyons literature line, flagged as such. Could be fully recovered via the same PyMuPDF-render → vision method if it becomes load-bearing.
 - **No equations were re-derived or line-checked.** Model mechanisms cited are from abstracts/conclusions. Before implementing any MM strategy, the actual paper math must be read in full from `Downloads/_corpus_txt/` (extracted, available) or the original PDFs.
 - This synthesis is **triage depth, not implementation depth.** Sufficient to decide what's worth building and when; NOT sufficient to code from. Each MM paper needs a full read at build time.
 
