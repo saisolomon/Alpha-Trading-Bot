@@ -36,6 +36,21 @@ MT5 + 4 venues = 4 different integration paths, 4 different SDKs, 4 different st
 
 ---
 
+## Local source recon (2026-06-11, post-trial — repo cloned and verified)
+
+> Shallow clone at `C:\Users\saisolomon\nautilus_trader` (source version 1.229.0-dev; PyPI latest 1.228.0). Findings that adjust the plan:
+
+- **Python requirement: `>=3.12,<3.15`.** Our box (and the ftmo-bot venv) runs **3.11** → Nautilus will NOT install into any current environment. Local exploration requires installing Python 3.12 or 3.13 first and creating a separate venv. **Action wired into M11 Phase 1: the nautilus-exec VPS AND the local research box both provision Python 3.13.**
+- **Native Windows wheels EXIST** (cp312/cp313/cp314 win_amd64 on PyPI) — local research/backtests on the Windows desktop work natively, **no WSL required**. (The execution VPS stays Ubuntu per the original plan.)
+- **All three target adapters confirmed in source** (`nautilus_trader/adapters/`): `interactive_brokers` (plus a Rust-backed `interactive_brokers_pyo3` variant), `bybit`, `hyperliquid` — plus `sandbox` (paper-trade against live data; useful for the Alpha Factory quarantine arm) and `_template` (for any custom adapter).
+- **Porting references located:**
+  - `examples/backtest/crypto_ema_cross_ethusdt_trailing_stop.py` — structurally near-identical to our Donchian trend EAs (signal + trailing stop, no fixed TP). **The Phase-1 porting template.**
+  - `examples/backtest/example_01…08+` — numbered tutorial series (custom CSV bars → clock/timers → bar aggregation → data catalog → portfolio → cache → indicators). The on-ramp, in order.
+  - `examples/live/{bybit,hyperliquid,interactive_brokers,interactive_brokers_v2}/` — per-venue live scaffolds for Phase 1-2.
+  - `examples/backtest/bitmex_grid_market_maker.py` + `crypto_orderbook_imbalance.py` — starting points for the M11 crypto-MM strategy class.
+
+---
+
 ## Confirmed Nautilus venue adapters (scraped 2026-06-04)
 
 | Venue | Status | Type | Our intended use |
