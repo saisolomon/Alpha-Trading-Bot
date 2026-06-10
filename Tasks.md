@@ -595,6 +595,17 @@ Each phase adds ONE component, validates, then moves on. Resist landing everythi
 - [ ] **24/7 multi-venue execution + Alpha Factory feeding it.** Searcher now covers IBKR + Hyperliquid + remaining FTMO. VPS is permanent execution box; searcher can run anywhere.
   *Acceptance:* At least one Alpha-Factory-graduated strategy is running live on a non-MT5 venue.
 
+- [ ] **AX Exchange (Architect) — venue due diligence + candidate integration.** Added 2026-06-11 at user request.
+  - **Verified (2026-06 recon):** Nautilus adapter `AX` is STABLE (official integrations table, type "Perpetuals Exchange"); adapter source present in both `nautilus_trader/adapters/architect_ax` and `crates/adapters/architect_ax`; repo ships two AX backtest examples (`architect_ax_book_imbalance.py`, `architect_ax_mean_reversion.py` — both directly reusable for our crypto-MM strategy class) plus an `examples/live/architect_ax` scaffold. Integration cost is config-level, same as Bybit/HL.
+  - **To verify before provisioning anything (due-diligence checklist, same discipline as the Upcomers vetting):**
+    1. **US-person access + regulatory status.** AX is Architect's exchange (Brett Harrison / ex-Jane Street, ex-FTX US). If it is genuinely a regulated US-accessible perps venue, this is potentially DECISIVE: Bybit and Hyperliquid both restrict US persons, so AX may be the only compliant crypto-perps venue for us — which would promote it from "third venue" to "primary crypto venue" and demote Bybit/HL to paper-research roles.
+    2. Products + liquidity: which perps, what depth, what spreads vs Bybit/HL.
+    3. Fee schedule + funding-rate mechanics + margin model.
+    4. Account opening: KYC, minimums, API key provisioning, testnet availability.
+    5. Counterparty profile: custody model, age of venue, incident history.
+  - **Decision output:** one of (a) AX becomes the primary crypto-perps venue (if US-access verdict is yes and liquidity clears our size), (b) AX added as third venue alongside Bybit/HL, (c) AX rejected with documented reason. Slots into the phased rollout only after the IBKR phase proves out — venue count discipline per the anti-patterns list still applies (one new component at a time).
+  *Acceptance:* `research/ax_exchange_dd.md` answers all five checklist items with sources; decision (a/b/c) logged in `Memory.md`; if (a) or (b), an `ax-exec` box spec is added to the infrastructure tier and the first paper trade settles via the Nautilus AX adapter with telemetry into Convex.
+
 ### Crypto market-making strategy class (post-Hyperliquid/Bybit; NEW strategy type)
 
 > Origin: `research/microstructure_execution_review_2026-06.md` Cluster A. Market-making is a **fundamentally new strategy type for us** — we have only ever run directional strategies. It requires a real limit order book, so it is strictly Phase B (Hyperliquid/Bybit, post-Nautilus). It goes through the full CLAUDE.md §4 pipeline like any other strategy. **Read the 5 papers in full at build time** (the review is triage depth only).

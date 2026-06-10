@@ -58,6 +58,7 @@ MT5 + 4 venues = 4 different integration paths, 4 different SDKs, 4 different st
 | **Interactive Brokers** | STABLE | Brokerage (multi-venue) | **Primary self-funded FX/indices/equities** |
 | **Hyperliquid** | STABLE | Crypto DEX (on-chain orderbook on HyperCore) | **Primary 24/7 crypto** — finally a real home for BTCUSD_M15_TrendFollow |
 | **Bybit** | STABLE | Crypto CEX | **Alternative/parallel crypto** — deeper liquidity, but CEX counterparty risk (post-Feb-2025 hack — we documented this concern in the Upcomers analysis) |
+| **AX Exchange (Architect)** | STABLE | Perpetuals Exchange | **Candidate crypto-perps venue, due diligence queued (M11 task, 2026-06-11).** Potentially decisive: if AX is genuinely US-person-accessible/regulated (to verify), it may become the PRIMARY crypto venue, since Bybit + Hyperliquid restrict US persons. Adapter + 2 backtest examples + live scaffold confirmed in source. |
 | Polymarket | STABLE | Prediction market DEX | Optional: prediction-market strategies if we ever build them |
 | Databento | STABLE | Institutional data provider | Optional: high-quality data for the Alpha Factory searcher |
 | Binance | STABLE | Crypto CEX | Alternative if Bybit/HL underperform |
