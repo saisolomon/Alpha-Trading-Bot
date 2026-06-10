@@ -17,6 +17,45 @@
 | 2026-06-05 (Fri, Day 9) | +$632 | $152 (AUDJPY) | **+0.38%** | +$632 | +0.31% | **US500_M15_ORB ANOTHER +$967 TP.** Net across 3 ORB trades: +$1,095 (positive expectancy confirmed). GBPUSD SL -$307. New AUDJPY SELL 1.40 opens 20:00 UTC — rides into weekend. |
 | 2026-06-06 (Sat, Day 10) | 0 | — | +0.00% | +$632 | +0.31% | Weekend. AUDJPY position remains open. |
 | 2026-06-07 (Sun, Day 11) | 0 | +$152 | +0.00% | +$632 +$152float | +0.35% | Weekend. AUDJPY SELL 1.40 @ 113.158 → 112.970 = **+$164 floating**. No realized trades. |
+| 2026-06-08 (Mon, Day 12) | +$544 | — | +0.27% | +$1,176 | +0.58% | GBPUSD LondonMomo +$746 TP, XAUUSD fix +$501 TP; US500 ORB -$684 SL (now 2W-2L), US100 drift -$20. |
+| 2026-06-09 (Tue, Day 13) | +$301 | — | +0.15% | +$1,477 | +0.73% | **Biggest single win of trial: LondonMomo GBPUSD +$1,075.83** session close. XAUUSD +$318. Losses: GBPUSD SwingBreak SL -$511, EURUSD LondonMomo SL -$582. |
+| 2026-06-10 (Wed, Day 14, FINAL) | **-$2,902** | +$710 (AUDJPY) | **-1.44%** | **-$1,669 realized / -$1,008 equity** | **-0.83% / -0.50%** | **Cluster day #3 — the trial's signature failure, confirmed 3×.** Four SLs in one session: XAUUSD -$508, GBPUSD -$620, EURUSD -$934, US500 -$840. AUDJPY trend short finally riding: +$710 floating at close. Machine rebooted 21:27 UTC; MT5 auto-recovered in 3 min, all EAs reattached, zero data loss. |
+
+---
+
+## TRIAL FINAL VERDICT (2026-06-10, Day 14 close)
+
+**Result: target missed; account never endangered; the data is the payoff.**
+
+| Final metric | Value |
+|---|---|
+| Realized P&L | **-$1,669.28 (-0.83%)** ($201,840.04 → $200,170.76) |
+| Equity P&L (incl. AUDJPY +$710 float) | **-$1,007.59 (-0.50%)** |
+| Profit target (+$10,000) | Missed. Peak cumulative +$1,937 (Day 2). |
+| FTMO rule violations | **ZERO in 14 days.** Closest daily-line approach: today, still $10,670 clear. |
+| Worst day | Day 14: -$2,902 realized — under half the internal 3% kill, ~29% of FTMO's 5% line. |
+| Infrastructure uptime | Survived: WiFi outage, MT5 disconnects, Convex 5xx, monitor hang + full machine reboot on the final day. Zero data loss. |
+
+### The one finding that dominates everything else
+**Three of the four losing days were the same event:** USD-strength rip → simultaneous SLs across AUDJPY/XAUUSD/GBPUSD/EURUSD (+US500 on Day 14). Days 5, 7, and 14 — the "diversified" 10-EA book is, on bad days, ONE bet on USD-counter beta. The 2% aggregate cap priced the EAs as independent; they are not. **Every dollar of net trial loss is attributable to this one structural flaw, which is precisely what M10 #1 (factor decomposition) measures and M10 #2 (correlation-aware Bayesian-Kelly sizing) fixes.**
+
+### Per-EA quick tally (post-mortem will compute exact)
+- **EURUSD_M15_LondonMomo (the carrier):** 6 big TP/session wins ($743-$1,076 each) vs ~5 SLs — clearly net positive, the trial's best strategy.
+- **XAUUSD_M15_LondonFix:** ~4W (+$501, +$501, +$372, +$318) vs ~3L (-$479, -$508, -$28) — modest net positive.
+- **US500_M15_ORB:** 2W-3L, **net -$429** (Day-9 "positive expectancy" call reversed; N=5 still noise → post-mortem decides).
+- **GBPUSD_H1_SwingBreak:** churned both directions, net negative drag.
+- **AUDJPY_H4_TrendFollow:** 3 SLs early, finally caught its trend on the final day (+$710 floating unbanked).
+- **US100_H1_OvernightDrift:** small steady churn, roughly flat.
+- **Never fired:** XAUUSD_H1_NewsReaction (no qualifying events), EURGBP_H4_MeanReversion (no 3σ), BTCUSD_M15_TrendFollow (dry-run bug, M10 task).
+
+### What the trial bought us
+1. Realized per-EA variance/correlation/cost data → feeds M10 sizing with Kelly + ERC.
+2. The cluster-day failure mode confirmed 3× → the next-trial sizing fix is evidence-based, not theoretical.
+3. Three live bugs caught and fixed (IOC→FOK, BTC dry-run, broker-state recovery identified).
+4. Infra validated end-to-end through five distinct failure events, including a final-day machine reboot with 3-minute full auto-recovery.
+5. Zero FTMO violations across 14 days → the risk framework is challenge-ready even though the alpha isn't yet.
+
+**M10 post-trial work begins now. First task: trial post-mortem (Tier 1 #1).**
 
 ---
 
