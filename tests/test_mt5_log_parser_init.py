@@ -64,7 +64,26 @@ def test_watchdog_armed_parses_as_init_never_dryrun():
     assert ev is not None and ev.event_type == "init", ev
     assert ev.ea_name == "EquityWatchdog"
     assert ev.dry_run is False
+    # chart symbol recovered from the MT5 "EAName (SYMBOL,TF)" prefix
+    assert ev.symbol == "EURUSD.sim", ev
     print("PASS test_watchdog_armed_parses_as_init_never_dryrun")
+
+
+ORCH_INIT = ("AB\t0\t05:43:39.500\tBotOrchestrator (USDNOK.sim,H1)\t"
+             "[BotOrchestrator] init: manifest=bot_manifest.txt poll=60s "
+             "tf=PERIOD_D1 auto_save=true")
+ORCH_POLL = ("AB\t0\t06:13:40.100\tBotOrchestrator (USDNOK.sim,H1)\t"
+             "[BotOrchestrator] poll #30: ok=3 fail=0 total=3  changes=0")
+
+
+def test_orchestrator_init_and_poll_summary_parse():
+    for line in (ORCH_INIT, ORCH_POLL):
+        ev = parse_line(FILE_DATE, line)
+        assert ev is not None and ev.event_type == "init", (line, ev)
+        assert ev.ea_name == "BotOrchestrator"
+        assert ev.symbol == "USDNOK.sim"
+        assert ev.dry_run is False
+    print("PASS test_orchestrator_init_and_poll_summary_parse")
 
 
 def test_existing_event_types_unbroken():
@@ -136,6 +155,7 @@ def test_sidecar_roundtrip_and_corruption_tolerance():
 if __name__ == "__main__":
     test_init_line_parses_with_dry_run_flag()
     test_watchdog_armed_parses_as_init_never_dryrun()
+    test_orchestrator_init_and_poll_summary_parse()
     test_existing_event_types_unbroken()
     test_file_parse_utf16le_with_bom()
     test_update_ea_states_fold_and_heartbeat_shape()

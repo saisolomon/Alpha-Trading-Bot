@@ -49,6 +49,17 @@ _ARMED_RE = re.compile(
     r"\[(EquityWatchdog)\]\s+armed\b",
     re.IGNORECASE,
 )
+# BotOrchestrator has no dry-run flag either; both its one-time init line
+# and its ~30-min "poll #N" summary count as state-bearing (the summary
+# keeps its lastLog fresh — liveness for the component whose silent death
+# would disable EA self-healing).
+_ORCH_RE = re.compile(
+    r"\[(BotOrchestrator)\]\s+(?:init:|poll\s+#\d+)",
+    re.IGNORECASE,
+)
+# MT5 prefixes each message with "EAName (SYMBOL,TF)" — fallback chart
+# symbol for EAs whose own log text doesn't carry [NAME:symbol].
+_CHART_PREFIX_RE = re.compile(r"^([\w]+)\s+\(([\w.#&]+),")
 _ENTRY_RE = re.compile(
     r"\[([\w]+)(?::([\w.]+))?\]\s+ENTRY\s+(LONG|SHORT)?\s*"
     r".*?px=([\d.]+).*?(?:lots=|vol=)([\d.]+)",
@@ -93,13 +104,15 @@ def parse_line(file_date: datetime, raw_line: str) -> SignalEvent | None:
         return None
     hhmmss, rest = m.group(1), m.group(2)
     event_time_ms = _parse_timestamp(file_date, hhmmss)
+    pm = _CHART_PREFIX_RE.match(rest)
+    chart_sym = pm.group(2) if pm else None  # symbol of the chart that logged
 
     # Try patterns in priority order (init > entry > close > range > skip > trail)
     im = _INIT_RE.search(rest)
     if im:
         ea, sym, flag = im.group(1), im.group(2), im.group(3)
         return SignalEvent(
-            ea_name=ea, symbol=sym or "?",
+            ea_name=ea, symbol=sym or chart_sym or "?",
             event_type="init",
             side=None, price=None, volume=None,
             event_time_ms=event_time_ms,
@@ -109,12 +122,22 @@ def parse_line(file_date: datetime, raw_line: str) -> SignalEvent | None:
     am = _ARMED_RE.search(rest)
     if am:
         return SignalEvent(
-            ea_name=am.group(1), symbol="?",
+            ea_name=am.group(1), symbol=chart_sym or "?",
             event_type="init",
             side=None, price=None, volume=None,
             event_time_ms=event_time_ms,
             raw_line=raw_line.strip()[:300],
             dry_run=False,  # the watchdog is always live by design
+        )
+    om = _ORCH_RE.search(rest)
+    if om:
+        return SignalEvent(
+            ea_name=om.group(1), symbol=chart_sym or "?",
+            event_type="init",
+            side=None, price=None, volume=None,
+            event_time_ms=event_time_ms,
+            raw_line=raw_line.strip()[:300],
+            dry_run=False,  # the orchestrator has no dry-run mode
         )
     em = _ENTRY_RE.search(rest)
     if em:
