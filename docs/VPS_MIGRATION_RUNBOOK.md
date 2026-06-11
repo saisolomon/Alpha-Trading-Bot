@@ -78,3 +78,4 @@ Any step fails badly → the local box is a known-good fallback: delete its sent
 - **§8 extra drills (dry-run week):**
   - **Kill drill:** temporarily set the watchdog's `InpDailyKillPct` to `0.0001` on the demo → verify flatten-within-1s + `FTMO_KILL_ACTIVE=1` + alert → restore real inputs. Do NOT skip; this is the synthetic trip test from Tasks.md.
   - **Outbox drill:** block the box's network ~10 min mid-session → verify snapshots queue to `logs/convex_outbox.jsonl` and drain in order on recovery (zero data loss).
+- **Vultr API key:** NOT needed for this runbook (console + RDP covers everything at one-box scale). If created later (automated snapshots / M11 fleet IaC): **never store it on the VPS itself** — a trading box must not hold the credential that controls its own infrastructure. Password manager only, and IP-restrict the key to home IP in Vultr's API settings.
