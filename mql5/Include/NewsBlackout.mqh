@@ -29,68 +29,83 @@
 
 //-- Hardcoded high-impact 2026 news calendar (UTC datetimes)
 //-- NFP, FOMC, US CPI, ECB rate decision, BoE rate decision
+//--
+//-- DST-CORRECTED 2026-06-11 (silent-EA replay finding #2): releases are
+//-- pinned to LOCAL clocks (08:30 ET, 14:00 ET, 14:45 CET presser, 12:00 UK),
+//-- so their UTC time SHIFTS with DST. The original table used winter
+//-- offsets year-round (+1h wrong all summer).
+//--   US DST 2026:    Mar 8  - Nov 1   (ET = UTC-4, else UTC-5)
+//--   EU/UK DST 2026: Mar 29 - Oct 25  (CET->CEST, GMT->BST)
 const datetime kNewsCalendar2026[] = {
-   // ---- US Non-Farm Payrolls (first Friday of each month, 13:30 UTC) ----
-   D'2026.01.02 13:30',
-   D'2026.02.06 13:30',
-   D'2026.03.06 13:30',
-   D'2026.04.03 13:30',
-   D'2026.05.01 13:30',
-   D'2026.06.05 13:30',
-   D'2026.07.03 13:30',
-   D'2026.08.07 13:30',
-   D'2026.09.04 13:30',
-   D'2026.10.02 13:30',
-   D'2026.11.06 13:30',
-   D'2026.12.04 13:30',
-   // ---- FOMC rate decisions (~8/year, Wed 19:00 UTC) ----
-   D'2026.01.28 19:00',
-   D'2026.03.18 19:00',   // + SEP press conf
-   D'2026.04.29 19:00',
-   D'2026.06.17 19:00',   // + SEP
-   D'2026.07.29 19:00',
-   D'2026.09.16 19:00',   // + SEP
-   D'2026.11.04 19:00',
-   D'2026.12.16 19:00',   // + SEP
-   // ---- US CPI release (mid-month, 13:30 UTC) ----
-   D'2026.01.14 13:30',
-   D'2026.02.11 13:30',
-   D'2026.03.11 13:30',
-   D'2026.04.15 13:30',
-   D'2026.05.13 13:30',
-   D'2026.06.10 13:30',
-   D'2026.07.15 13:30',
-   D'2026.08.12 13:30',
-   D'2026.09.10 13:30',
-   D'2026.10.15 13:30',
-   D'2026.11.13 13:30',
-   D'2026.12.10 13:30',
-   // ---- ECB rate decisions (8/year, Thu 12:45 UTC announcement) ----
-   D'2026.01.29 12:45',
-   D'2026.03.12 12:45',
-   D'2026.04.16 12:45',
-   D'2026.06.04 12:45',
-   D'2026.07.23 12:45',
-   D'2026.09.10 12:45',
-   D'2026.10.29 12:45',
-   D'2026.12.17 12:45',
-   // ---- BoE MPC rate decisions (8/year, Thu 12:00 UTC) ----
-   D'2026.02.05 12:00',
-   D'2026.03.19 12:00',
-   D'2026.05.07 12:00',
-   D'2026.06.18 12:00',
-   D'2026.08.06 12:00',
-   D'2026.09.17 12:00',
-   D'2026.11.05 12:00',
-   D'2026.12.17 12:00',
+   // ---- US Non-Farm Payrolls (first Friday, 08:30 ET) ----
+   D'2026.01.02 13:30',   // EST
+   D'2026.02.06 13:30',   // EST
+   D'2026.03.06 13:30',   // EST (US DST starts Mar 8)
+   D'2026.04.03 12:30',   // EDT
+   D'2026.05.01 12:30',   // EDT
+   D'2026.06.05 12:30',   // EDT
+   D'2026.07.03 12:30',   // EDT
+   D'2026.08.07 12:30',   // EDT
+   D'2026.09.04 12:30',   // EDT
+   D'2026.10.02 12:30',   // EDT
+   D'2026.11.06 13:30',   // EST (US DST ended Nov 1)
+   D'2026.12.04 13:30',   // EST
+   // ---- FOMC rate decisions (14:00 ET statement) ----
+   D'2026.01.28 19:00',   // EST
+   D'2026.03.18 18:00',   // EDT  + SEP press conf
+   D'2026.04.29 18:00',   // EDT
+   D'2026.06.17 18:00',   // EDT  + SEP
+   D'2026.07.29 18:00',   // EDT
+   D'2026.09.16 18:00',   // EDT  + SEP
+   D'2026.11.04 19:00',   // EST
+   D'2026.12.16 19:00',   // EST  + SEP
+   // ---- US CPI release (mid-month, 08:30 ET) ----
+   D'2026.01.14 13:30',   // EST
+   D'2026.02.11 13:30',   // EST
+   D'2026.03.11 12:30',   // EDT (after Mar 8)
+   D'2026.04.15 12:30',   // EDT
+   D'2026.05.13 12:30',   // EDT
+   D'2026.06.10 12:30',   // EDT
+   D'2026.07.15 12:30',   // EDT
+   D'2026.08.12 12:30',   // EDT
+   D'2026.09.10 12:30',   // EDT
+   D'2026.10.15 12:30',   // EDT
+   D'2026.11.13 13:30',   // EST
+   D'2026.12.10 13:30',   // EST
+   // ---- ECB rate decisions (Thu; 14:45 CET/CEST press conference) ----
+   D'2026.01.29 13:45',   // CET
+   D'2026.03.12 13:45',   // CET (EU DST starts Mar 29)
+   D'2026.04.16 12:45',   // CEST
+   D'2026.06.04 12:45',   // CEST
+   D'2026.07.23 12:45',   // CEST
+   D'2026.09.10 12:45',   // CEST
+   D'2026.10.29 13:45',   // CET (EU DST ended Oct 25)
+   D'2026.12.17 13:45',   // CET
+   // ---- BoE MPC rate decisions (Thu, 12:00 UK) ----
+   D'2026.02.05 12:00',   // GMT
+   D'2026.03.19 12:00',   // GMT (UK DST starts Mar 29)
+   D'2026.05.07 11:00',   // BST
+   D'2026.06.18 11:00',   // BST
+   D'2026.08.06 11:00',   // BST
+   D'2026.09.17 11:00',   // BST
+   D'2026.11.05 12:00',   // GMT
+   D'2026.12.17 12:00',   // GMT
 };
 
 //+------------------------------------------------------------------+
-//| Returns true if current UTC time is within +/- buffer of any     |
+//| Returns true if the given UTC time is within +/- buffer of any   |
 //| scheduled high-impact news event.                                |
 //|                                                                  |
+//| CLOCK CONTRACT (root cause of the trial-#1 news misalignment):   |
+//| the calendar is UTC, so callers MUST pass TimeGMT().             |
+//| NEVER pass TimeCurrent() -- that is BROKER time (UTC+3 on OANDA),|
+//| which shifted every window ~3h early for the whole trial and     |
+//| made XAUUSD_H1_NewsReaction evaluate pre-release bars (zero      |
+//| entries in 14 days despite ECB 6/04 + NFP 6/05 + CPI 6/10 all    |
+//| matching its lookback).                                           |
+//|                                                                  |
 //| Use in entry path:                                                |
-//|   if (IsNewsBlackout(TimeCurrent())) return;  // skip entry      |
+//|   if (IsNewsBlackout(TimeGMT())) return;  // skip entry          |
 //+------------------------------------------------------------------+
 bool IsNewsBlackout(const datetime now,
                     const int buffer_before_min = NEWS_BUFFER_BEFORE_MIN,

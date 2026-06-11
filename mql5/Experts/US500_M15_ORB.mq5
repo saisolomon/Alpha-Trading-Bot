@@ -349,7 +349,7 @@ void OnTick() {
    double worst_case = lots * stop_distance / SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE)
                         * SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
    // News blackout (NFP/FOMC/CPI/ECB/BoE +/- 5min)
-   if(IsNewsBlackout(TimeCurrent())) {
+   if(IsNewsBlackout(TimeGMT())) {
       PrintFormat("[US500_M15_ORB] news blackout; skip session");
       g_traded_this_session = true;
       return;

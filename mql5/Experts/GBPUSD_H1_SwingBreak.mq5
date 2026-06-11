@@ -263,11 +263,11 @@ void OnTick() {
 
    // ---- ENTRY GATE ----
    if(g_bars_since_exit < InpCooldownBars) return;
-   if(IsNewsBlackout(TimeCurrent())) {
+   if(IsNewsBlackout(TimeGMT())) {
       static datetime last_news_log = 0;
       if(TimeCurrent() - last_news_log > 600) {
          PrintFormat("[GBPUSD_H1_SwingBreak:%s] news blackout (%d min to next event); skip",
-                     _Symbol, MinutesToNextNews(TimeCurrent()));
+                     _Symbol, MinutesToNextNews(TimeGMT()));
          last_news_log = TimeCurrent();
       }
       return;

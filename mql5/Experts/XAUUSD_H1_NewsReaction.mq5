@@ -199,7 +199,7 @@ void OnTick() {
 
    // Entry: did a news event happen in the last InpNewsLookbackMin minutes?
    datetime event_time;
-   if(!RecentNewsEvent(TimeCurrent(), InpNewsLookbackMin, event_time)) return;
+   if(!RecentNewsEvent(TimeGMT(), InpNewsLookbackMin, event_time)) return;
    // De-dup: don't re-trade the same event
    if(event_time == g_last_traded_news) return;
 

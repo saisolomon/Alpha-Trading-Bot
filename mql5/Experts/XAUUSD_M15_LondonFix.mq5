@@ -305,7 +305,7 @@ void OnTick() {
 
    double worst_case = lots * stop_distance / SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE)
                         * SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
-   if(IsNewsBlackout(TimeCurrent())) {
+   if(IsNewsBlackout(TimeGMT())) {
       PrintFormat("[XAUUSD_M15_LondonFix:%s] news blackout; skip session", _Symbol);
       g_traded_this_session = true; return;
    }

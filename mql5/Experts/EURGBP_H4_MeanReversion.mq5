@@ -270,7 +270,7 @@ void OnTick() {
    }
 
    // Entry logic (only when flat)
-   if(IsNewsBlackout(TimeCurrent())) return;
+   if(IsNewsBlackout(TimeGMT())) return;
    if(IsFridayLate(TimeCurrent())) return;  // don't open new positions Friday late
 
    int target_dir = 0;

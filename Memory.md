@@ -735,6 +735,11 @@ Full report: `research/trial_2026-05_postmortem.md` (reproducible via `trial_pos
 - **Costs:** commissions -$456 total (~0.23% of account per 14d — material at this P&L scale); spread not separable from deals (OnTradeTransaction upgrade fixes capture).
 - Multi-factor regression deliberately deferred to Tier-2 (4-5 regressors on n=10 days = overfitting theater; CLAUDE.md §2.3 over task-spec).
 
+**Silent-EA replay addendum (2026-06-11, `research/silent_ea_replay_2026-06.md`):**
+- **RSIFade was never broken — it was the SECOND dry-run flip miss** (after BTC). It fired a valid signal 6/02 that the flag swallowed. Dry-run misses are now a bug CLASS; pre-Challenge runbook must verify every chart's dryRun=false via heartbeat eaStates before go-live.
+- **NewsReaction exposed a SYSTEMIC clock bug:** UTC calendar compared against `TimeCurrent()` (broker UTC+3) shifted ALL news windows ~3h early for the whole trial — **no EA's news blackout ever covered a real release** (ECB 6/04, NFP 6/05, CPI 6/10 all unprotected). Plus DST hardcoding (+1h summer error, 27 rows). Both fixed 2026-06-11: DST-correct calendar, TimeGMT() contract, all 9 EAs' call sites swept, 11/11 compile clean. **Standing rule: news/calendar logic uses TimeGMT(), never TimeCurrent()** — same trap family as CLAUDE.md §9 "wrong midnight."
+- NewsReaction's thesis was never actually tested (wrong clock all trial) — strong rejoin candidate; FOMC 6/17 + BoE 6/18 fall in the pre-Challenge dry-run week as live test events.
+
 ---
 
 ## Roster & Sizing Decisions — Tier-1 close-out (2026-06-11, user-ratified)
