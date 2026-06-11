@@ -14,20 +14,17 @@
 //|     opposite breakout signal                                     |
 //|   - Cooldown: 16 bars (4h) after each exit to avoid whipsaw      |
 //|                                                                  |
-//| Why BTCUSD on M15:                                                |
-//|   - Crypto is THE strongest TSMOM market in academic literature  |
-//|     (Sharpe 0.8-1.5 vs 0.4-0.6 for G10 FX)                       |
-//|   - 24/7 trading = no session-time filter needed = more bars     |
-//|     per week than any other strategy in the portfolio            |
-//|   - Volatility is high enough that Donchian breakouts produce    |
-//|     clean signals without parameter optimization                  |
-//|   - Completely uncorrelated to existing FX/equity strategies     |
+//| Why AUDJPY on H4:                                                 |
+//|   - Classic risk-on/risk-off cross: trends persist multi-day     |
+//|     when global risk appetite shifts (carry unwind dynamics)     |
+//|   - H4 horizon diversifies the M15 session book by timeframe     |
 //|                                                                  |
 //| FTMO compliance:                                                  |
 //|   - Per-tick equity monitor via libftmorisk                      |
 //|   - NewsBlackout check before each entry                         |
-//|   - Portfolio-level risk-cap gate (2% aggregate per CLAUDE.md)   |
-//|   - 0.25% per-trade risk (CLAUDE.md M15 cap)                     |
+//|   - Portfolio risk gates: 1.5% aggregate + 0.75% USD-counter     |
+//|     cluster sub-cap (Config C2, 2026-06-11 sizing calibration)   |
+//|   - 0.25% per-trade risk (C2 hold pending more sample)           |
 //+------------------------------------------------------------------+
 #property copyright "FTMO bot"
 #property version   "0.10"
@@ -44,7 +41,7 @@ input int     InpAtrPeriod           = 14;
 input double  InpAtrStopMult         = 2.0;
 input double  InpAtrTrailMult        = 2.5;
 input int     InpCooldownBars        = 6;       // 4h
-input double  InpPerTradeRiskPct     = 0.0025;
+input double  InpPerTradeRiskPct     = 0.0025;  // 0.25% HOLD per Config C2 (n=3 closed; thesis unresolved)
 input bool    InpDryRun              = true;
 
 //-- State
@@ -121,7 +118,7 @@ bool SendEntry(const ENUM_ORDER_TYPE type, const double lots,
    req.sl = sl;
    req.tp = 0;  // no fixed TP -- trail
    req.deviation = 50;  // BTC spreads wider
-   req.type_filling = ORDER_FILLING_FOK;
+   req.type_filling = SafeFillingMode(_Symbol);
    req.comment = "AUDJPY_H4_TrendFollow";
    if(!OrderCheck(req, chk) || chk.retcode != 0) {
       PrintFormat("[AUDJPY_H4_TrendFollow:%s] OrderCheck retcode=%d", _Symbol, chk.retcode);
@@ -182,7 +179,7 @@ void ForceFlat(const string reason) {
                 ? SymbolInfoDouble(_Symbol, SYMBOL_ASK)
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.deviation = 50;
-   req.type_filling = ORDER_FILLING_FOK;
+   req.type_filling = SafeFillingMode(_Symbol);
    req.comment = StringFormat("AUDJPY_H4_TrendFollow %s", reason);
    if(OrderSend(req, res) && res.retcode == TRADE_RETCODE_DONE) {
       PrintFormat("[AUDJPY_H4_TrendFollow:%s] CLOSED (%s) at %.2f", _Symbol, reason, res.price);
@@ -192,7 +189,7 @@ void ForceFlat(const string reason) {
 
 int OnInit() {
    if(_Period != PERIOD_H4) {
-      PrintFormat("[AUDJPY_H4_TrendFollow] FATAL: must run on M15 (current=%s)", EnumToString(_Period));
+      PrintFormat("[AUDJPY_H4_TrendFollow] FATAL: must run on H4 (current=%s)", EnumToString(_Period));
       return INIT_PARAMETERS_INCORRECT;
    }
    PrintFormat("[AUDJPY_H4_TrendFollow:%s] init  donchian=%d bars  atr(%d) stop=%.1fx trail=%.1fx  cooldown=%d  risk=%.2f%%  dry_run=%s",
@@ -206,6 +203,18 @@ int OnInit() {
    if(g_atr_handle == INVALID_HANDLE) {
       Print("[AUDJPY_H4_TrendFollow] FATAL iATR handle = INVALID");
       return INIT_FAILED;
+   }
+
+   // Broker-state recovery: re-bind to an open position after MT5 restart.
+   // Restores direction + trail level so the ratchet continues instead of
+   // freezing (the trial's AUDJPY winner survived the 6/10 reboot only
+   // because the SL lived broker-side; the trail itself went dead).
+   if(!InpDryRun && PositionSelect(_Symbol)) {
+      g_open_ticket = (ulong)PositionGetInteger(POSITION_TICKET);
+      g_pos_dir = (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) ? +1 : -1;
+      g_trail_sl = PositionGetDouble(POSITION_SL);
+      PrintFormat("[AUDJPY_H4_TrendFollow:%s] recovered open position ticket=%I64u dir=%+d sl=%.3f -- trail resumed",
+                  _Symbol, g_open_ticket, g_pos_dir, g_trail_sl);
    }
    return INIT_SUCCEEDED;
 }
@@ -291,6 +300,7 @@ void OnTick() {
    double worst_case = lots * stop_distance / SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE)
                         * SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
    if(WouldExceedRiskCap(equity, worst_case)) return;
+   if(WouldExceedClusterCap(_Symbol, equity, worst_case)) return;
    int decision = ftmo_check_pretrade(g_ftmo_handle, equity, worst_case);
    if(decision == FTMO_DECISION_DENY) return;
    if(decision == FTMO_DECISION_IMMINENT) lots *= 0.5;

@@ -63,3 +63,26 @@ void QuantLogIfError(const int rc, const string label) {
    }
    PrintFormat("[QuantLib] %s failed: %s (rc=%d)", label, msg, rc);
 }
+
+//+------------------------------------------------------------------+
+//| SafeFillingMode: query the broker's supported filling modes at   |
+//| runtime instead of hardcoding one.                                |
+//|                                                                  |
+//| Origin: trial #1 near-miss (2026-05-27). All EAs hardcoded       |
+//| ORDER_FILLING_IOC; OANDA only supports FOK -> every entry was    |
+//| rejected with retcode 10030 for 24h. The sed fix hardcoded FOK,  |
+//| which works on OANDA but would break on an IOC-only or           |
+//| RETURN-only broker. This helper makes the filling mode broker-   |
+//| derived so the class of bug is dead permanently.                 |
+//|                                                                  |
+//| Preference order: FOK > IOC > RETURN (RETURN is always legal as  |
+//| the fallback for instruments quoted in exchange-execution mode). |
+//+------------------------------------------------------------------+
+ENUM_ORDER_TYPE_FILLING SafeFillingMode(const string symbol) {
+   long flags = 0;
+   if(!SymbolInfoInteger(symbol, SYMBOL_FILLING_MODE, flags))
+      return ORDER_FILLING_RETURN;
+   if((flags & SYMBOL_FILLING_FOK) != 0) return ORDER_FILLING_FOK;
+   if((flags & SYMBOL_FILLING_IOC) != 0) return ORDER_FILLING_IOC;
+   return ORDER_FILLING_RETURN;
+}

@@ -36,7 +36,7 @@ input int     InpSessionOpenMinute   = 0;
 input int     InpRangeMinutes        = 60;
 input int     InpSessionCloseHour    = 16;       // London close UTC
 input int     InpSessionCloseMinute  = 0;
-input double  InpPerTradeRiskPct     = 0.0025;
+input double  InpPerTradeRiskPct     = 0.0050;  // 0.50% per Config C2 (2026-06-11 sizing calibration; GBPUSD chart only)
 input double  InpTakeProfitMult      = 1.5;
 input double  InpMinRangePct         = 0.0005;   // 0.05% — loosened 2026-05-26 from 0.08% after both validation days skipped for "range too narrow" in low-vol regime
 input bool    InpDryRun              = true;
@@ -160,7 +160,7 @@ bool SendEntry(const ENUM_ORDER_TYPE type, const double lots,
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.sl = sl; req.tp = tp;
    req.deviation = 20;
-   req.type_filling = ORDER_FILLING_FOK;
+   req.type_filling = SafeFillingMode(_Symbol);
    req.comment = "EURUSD_M15_LondonMomo";
    if(!OrderCheck(req, chk) || chk.retcode != 0) {
       PrintFormat("[EURUSD_M15_LondonMomo:%s] OrderCheck retcode=%d", _Symbol, chk.retcode);
@@ -199,7 +199,7 @@ void ForceFlat(const string reason) {
                 ? SymbolInfoDouble(_Symbol, SYMBOL_ASK)
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.deviation = 20;
-   req.type_filling = ORDER_FILLING_FOK;
+   req.type_filling = SafeFillingMode(_Symbol);
    req.comment = StringFormat("EURUSD_M15_LondonMomo %s", reason);
    if(OrderSend(req, res) && res.retcode == TRADE_RETCODE_DONE) {
       PrintFormat("[EURUSD_M15_LondonMomo:%s] CLOSED (%s) at %.5f", _Symbol, reason, res.price);
@@ -218,6 +218,17 @@ int OnInit() {
    double init_balance = AccountInfoDouble(ACCOUNT_BALANCE);
    g_ftmo_handle = ftmo_new_account(AccountTypeCode(InpAccountType), init_balance);
    if(g_ftmo_handle == 0) { Print("[EURUSD_M15_LondonMomo] FATAL ftmo_new_account=0"); return INIT_FAILED; }
+
+   // Broker-state recovery: if MT5 restarted while our position was open,
+   // re-bind instead of forgetting it (prevents a duplicate entry in the
+   // same session). The broker is the source of truth.
+   if(!InpDryRun && PositionSelect(_Symbol)) {
+      g_open_ticket = (ulong)PositionGetInteger(POSITION_TICKET);
+      g_current_session_date = SessionDateOf(TimeCurrent());
+      g_traded_this_session = true;   // one-trade-per-session: the open position IS today's trade
+      PrintFormat("[EURUSD_M15_LondonMomo:%s] recovered open position ticket=%I64u vol=%.2f -- session marked traded",
+                  _Symbol, g_open_ticket, PositionGetDouble(POSITION_VOLUME));
+   }
    return INIT_SUCCEEDED;
 }
 
@@ -300,6 +311,7 @@ void OnTick() {
       g_traded_this_session = true; return;
    }
    if(WouldExceedRiskCap(equity, worst_case)) { g_traded_this_session = true; return; }
+   if(WouldExceedClusterCap(_Symbol, equity, worst_case)) { g_traded_this_session = true; return; }
    int decision = ftmo_check_pretrade(g_ftmo_handle, equity, worst_case);
    if(decision == FTMO_DECISION_DENY) { g_traded_this_session = true; return; }
    if(decision == FTMO_DECISION_IMMINENT) lots *= 0.5;

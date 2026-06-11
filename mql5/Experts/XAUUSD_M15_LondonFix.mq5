@@ -43,7 +43,7 @@ input int     InpAtrPeriod           = 14;
 input double  InpAtrStopMult         = 1.5;
 input double  InpAtrTpMult           = 1.5;
 input double  InpMinPreFixRangePct   = 0.001;    // 0.1% on gold
-input double  InpPerTradeRiskPct     = 0.0025;
+input double  InpPerTradeRiskPct     = 0.0050;   // 0.50% per Config C2 (2026-06-11 sizing calibration)
 input bool    InpDryRun              = true;
 
 //-- State
@@ -162,7 +162,7 @@ bool SendEntry(const ENUM_ORDER_TYPE type, const double lots,
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.sl = sl; req.tp = tp;
    req.deviation = 30;
-   req.type_filling = ORDER_FILLING_FOK;
+   req.type_filling = SafeFillingMode(_Symbol);
    req.comment = "XAUUSD_M15_LondonFix";
    if(!OrderCheck(req, chk) || chk.retcode != 0) {
       PrintFormat("[XAUUSD_M15_LondonFix:%s] OrderCheck retcode=%d", _Symbol, chk.retcode);
@@ -200,7 +200,7 @@ void ForceFlat(const string reason) {
                 ? SymbolInfoDouble(_Symbol, SYMBOL_ASK)
                 : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    req.deviation = 30;
-   req.type_filling = ORDER_FILLING_FOK;
+   req.type_filling = SafeFillingMode(_Symbol);
    req.comment = StringFormat("XAUUSD_M15_LondonFix %s", reason);
    if(OrderSend(req, res) && res.retcode == TRADE_RETCODE_DONE) {
       PrintFormat("[XAUUSD_M15_LondonFix:%s] CLOSED (%s) at %.2f", _Symbol, reason, res.price);
@@ -224,6 +224,16 @@ int OnInit() {
    if(g_atr_handle == INVALID_HANDLE) {
       PrintFormat("[XAUUSD_M15_LondonFix] FATAL: iATR handle creation failed");
       return INIT_FAILED;
+   }
+
+   // Broker-state recovery: re-bind to an open position after MT5 restart
+   // (prevents duplicate same-session entry). Broker is the source of truth.
+   if(!InpDryRun && PositionSelect(_Symbol)) {
+      g_open_ticket = (ulong)PositionGetInteger(POSITION_TICKET);
+      g_current_session_date = SessionDateOf(TimeCurrent());
+      g_traded_this_session = true;   // one-trade-per-day: the open position IS today's trade
+      PrintFormat("[XAUUSD_M15_LondonFix:%s] recovered open position ticket=%I64u vol=%.2f -- session marked traded",
+                  _Symbol, g_open_ticket, PositionGetDouble(POSITION_VOLUME));
    }
    return INIT_SUCCEEDED;
 }
@@ -300,6 +310,7 @@ void OnTick() {
       g_traded_this_session = true; return;
    }
    if(WouldExceedRiskCap(equity, worst_case)) { g_traded_this_session = true; return; }
+   if(WouldExceedClusterCap(_Symbol, equity, worst_case)) { g_traded_this_session = true; return; }
    int decision = ftmo_check_pretrade(g_ftmo_handle, equity, worst_case);
    if(decision == FTMO_DECISION_DENY) { g_traded_this_session = true; return; }
    if(decision == FTMO_DECISION_IMMINENT) lots *= 0.5;

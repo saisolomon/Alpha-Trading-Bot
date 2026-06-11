@@ -27,8 +27,17 @@
 #ifndef __PORTFOLIO_RISK_MQH__
 #define __PORTFOLIO_RISK_MQH__
 
-//-- Default cap matches CLAUDE.md sec 3 internal limit
-#define PORTFOLIO_RISK_CAP_FRACTION  0.02   // 2% of equity
+//-- Aggregate cap: 1.5% per the 2026-06-11 sizing calibration (Config C2,
+//-- research/trial_2026-05_sizing_calibration.md). Was 2% (CLAUDE.md ceiling);
+//-- lowered because trial #1's MC showed the 2% book failing the
+//-- P(touch max line) < 0.1% gate at the edge it actually had.
+#define PORTFOLIO_RISK_CAP_FRACTION  0.015  // 1.5% of equity
+
+//-- USD-counter cluster sub-cap: trial #1's three cluster days (6/01, 6/03,
+//-- 6/10) proved EURUSD/GBPUSD/AUDJPY/XAUUSD positions are ONE bet on
+//-- USD-strength days (-$5,394 across those 3 days vs +$5,569 on the other
+//-- 7). Their combined open risk is capped tighter than the aggregate.
+#define USD_CLUSTER_CAP_FRACTION     0.0075 // 0.75% of equity
 
 //+------------------------------------------------------------------+
 //| Compute the sum of worst-case losses (in account currency)       |
@@ -99,6 +108,72 @@ bool WouldExceedRiskCap(const double account_equity,
       static datetime last_log = 0;
       if(TimeCurrent() - last_log > 300) {
          PrintFormat("[PortfolioRisk] BLOCK entry: current=%.3f%% + proposed=%.3f%% = %.3f%% > cap %.2f%%",
+                     100*current/account_equity,
+                     100*proposed_worst_case_loss_usd/account_equity,
+                     100*new_fraction, 100*cap_fraction);
+         last_log = TimeCurrent();
+      }
+      return true;
+   }
+   return false;
+}
+
+//+------------------------------------------------------------------+
+//| USD-counter cluster membership. Prefix match so broker suffixes  |
+//| (.sim etc.) don't matter. EURUSD is included defensively: the    |
+//| benched momo EURUSD leg / RSIFade would rejoin this cluster.     |
+//+------------------------------------------------------------------+
+bool IsUsdCounterSymbol(const string sym) {
+   static string cluster[4] = {"EURUSD", "GBPUSD", "AUDJPY", "XAUUSD"};
+   for(int i = 0; i < 4; i++)
+      if(StringFind(sym, cluster[i]) == 0) return true;
+   return false;
+}
+
+//+------------------------------------------------------------------+
+//| Sum of worst-case losses across open positions in the USD-counter|
+//| cluster only. Same mechanics as ComputeAggregateOpenRiskUSD;     |
+//| no-SL positions are skipped (the aggregate function already      |
+//| warns about those).                                              |
+//+------------------------------------------------------------------+
+double ComputeClusterOpenRiskUSD() {
+   double total = 0.0;
+   int n = PositionsTotal();
+   for(int i = 0; i < n; i++) {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0) continue;
+      if(!PositionSelectByTicket(ticket)) continue;
+      string sym = PositionGetString(POSITION_SYMBOL);
+      if(!IsUsdCounterSymbol(sym)) continue;
+      double sl = PositionGetDouble(POSITION_SL);
+      if(sl <= 0) continue;
+      double volume = PositionGetDouble(POSITION_VOLUME);
+      double entry  = PositionGetDouble(POSITION_PRICE_OPEN);
+      double tick_size = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_SIZE);
+      double tick_val  = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_VALUE);
+      if(tick_size <= 0 || tick_val <= 0) continue;
+      total += (MathAbs(entry - sl) / tick_size) * tick_val * volume;
+   }
+   return total;
+}
+
+//+------------------------------------------------------------------+
+//| Pre-trade gate for the USD-counter cluster sub-cap. Returns true |
+//| if the trade should be SKIPPED. Non-cluster symbols always pass  |
+//| (they are only bound by the aggregate cap).                      |
+//+------------------------------------------------------------------+
+bool WouldExceedClusterCap(const string proposed_symbol,
+                           const double account_equity,
+                           const double proposed_worst_case_loss_usd,
+                           const double cap_fraction = USD_CLUSTER_CAP_FRACTION) {
+   if(!IsUsdCounterSymbol(proposed_symbol)) return false;
+   if(account_equity <= 0) return true;  // refuse on bad equity
+   double current = ComputeClusterOpenRiskUSD();
+   double new_fraction = (current + proposed_worst_case_loss_usd) / account_equity;
+   if(new_fraction > cap_fraction) {
+      static datetime last_log = 0;
+      if(TimeCurrent() - last_log > 300) {
+         PrintFormat("[PortfolioRisk] BLOCK entry (USD-cluster): current=%.3f%% + proposed=%.3f%% = %.3f%% > cluster cap %.2f%%",
                      100*current/account_equity,
                      100*proposed_worst_case_loss_usd/account_equity,
                      100*new_fraction, 100*cap_fraction);
