@@ -28,7 +28,7 @@
 ## 3. MT5 install + account (15 min)
 - [ ] Install MT5 (MetaQuotes installer or FTMO's). Log in with the **paid Challenge credentials** (from FTMO dashboard after purchase). Confirm bottom-right shows connected + correct server.
 - [ ] Options → Expert Advisors: enable algorithmic trading; allow DLL imports (libquant/libftmorisk need it).
-- [ ] Copy DLLs: repo `cpp/`-built `libquant.dll` + `libftmorisk.dll` → `<MT5 data>\MQL5\Libraries\` (grab the built DLLs from the old box's MT5 tree — they are not in git).
+- [ ] Copy DLLs: **`libquant.dll` + `libgcc_s_seh-1.dll`** → `<MT5 data>\MQL5\Libraries\` (source: old box's MT5 Libraries dir, via RDP drive redirection `\tsclient\C\...`; not in git). CORRECTED 2026-06-11: `libftmorisk.dll` is NOT needed at runtime — FTMORisk.mqh imports `libquant.dll` (the risk functions live there); the OCaml DLL in `ocaml/_build` is a parity-test artifact. `libgcc_s_seh-1.dll` is libquant's MinGW runtime dependency and IS required.
 - [ ] Deploy MQL5 files: repo `mql5\Include\*.mqh` → `MQL5\Include\`; repo `mql5\Experts\*.mq5` → `MQL5\Experts\`; repo `mql5\bot_manifest.txt` → `MQL5\Files\bot_manifest.txt` (**C2 roster — verify it lists exactly: EURUSD_M15_LondonMomo, XAUUSD_M15_LondonFix, AUDJPY_H4_TrendFollow**).
 - [ ] Compile all in MetaEditor (F7 each, or CLI `/compile`). Expect 0 errors (warning 68 about version format is benign).
 
