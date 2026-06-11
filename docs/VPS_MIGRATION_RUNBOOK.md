@@ -17,7 +17,7 @@
 - [ ] Windows Update: run once to current, then set **active hours** + pause updates for 7 days before any go-live window (lesson: the 6/10 reboot).
 - [ ] `powercfg /change standby-timeout-ac 0` + `powercfg /change hibernate-timeout-ac 0` (server images are usually fine; verify anyway).
 - [ ] Timezone: leave the box on **UTC** (cleaner logs than the local box's EDT confusion during the replay; MT5 logs will then be UTC).
-- [ ] Install: Git, Python 3.11 (monitor venv) — `winget install Git.Git Python.Python.3.11`.
+- [ ] Install: Git, Python 3.11, uv. **Server 2022 has NO winget** (confirmed on the Vultr box 2026-06-11) — use direct installers: Git via the git-for-windows latest-release API asset (`/VERYSILENT /NORESTART`), Python via `python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe` (`/quiet InstallAllUsers=1 PrependPath=1 Include_launcher=1`), uv via `irm https://astral.sh/uv/install.ps1 | iex`. Open a NEW shell afterwards (PATH), verify all three `--version`s.
 
 ## 2. Repo + secrets (10 min)
 - [ ] `git clone https://github.com/saisolomon/Alpha-Trading-Bot.git C:\ftmo-bot`
