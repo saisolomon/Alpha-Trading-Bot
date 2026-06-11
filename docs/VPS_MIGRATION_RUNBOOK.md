@@ -7,7 +7,8 @@
 > **BLOCKED ON USER:** step 0 (purchase). Everything after is mechanical.
 
 ## 0. Purchase (user action, ~$14/mo)
-- [ ] Contabo **Cloud VPS S** (or current equivalent ≥ 2 vCPU / 4 GB / 80 GB NVMe), **Windows Server 2022** image, **EU region (Nuremberg)** — near OANDA's UK/EU infrastructure; latency is irrelevant at M15+, region choice is for routing stability.
+- [ ] Contabo **Cloud VPS S** (or current equivalent ≥ 2 vCPU / 4 GB / 80 GB NVMe), **Windows Server 2022** image.
+- [ ] **Region: US East preferred, Nuremberg (EU) acceptable.** CORRECTED 2026-06-11: the original "EU, near OANDA's UK/EU infra" premise was an assumption; the trial's own MT5 logs show the terminal connecting via **"Access Server – NY"** (ping ~40ms), so US East minimizes hops to the observed access layer. Latency is irrelevant at M15+ either way — the criterion is routing stability + cost (non-EU regions carry a small Contabo surcharge; Nuremberg is the budget pick). Do not pick Asia/Oceania. Note: the paid Challenge's actual server is assigned by FTMO post-purchase and may differ from the trial's.
 - [ ] Record RDP credentials in the password manager (NOT in the repo).
 
 ## 1. Base box hardening (15 min)
