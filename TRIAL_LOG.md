@@ -23,6 +23,12 @@
 
 ---
 
+## ⚠️ P&L CORRECTION (2026-06-11, post-mortem reconciliation)
+
+**The final-verdict numbers below overstate the loss.** The post-mortem (`research/trial_2026-05_postmortem.md` §0) reconciled the raw balance series: the window opened at **exactly $200,000.00** (first 5/28 snapshot), not the $201,840.04 `initialCapital` used in the tables below — that field is mutable (registerAccount overwrites it on re-registration; bug filed in M10). **True trial result: realized +$163.70 (+0.08%), equity ≈ +$811 (+0.41%).** Target still missed, zero violations still true, cluster-day anatomy unchanged (+$5,569 normal days / -$5,394 cluster days). Historical entries below are left as written (they were honest at the time); the post-mortem is the number of record.
+
+---
+
 ## OFFICIAL END + STAND-DOWN (2026-06-11)
 
 **FTMO confirmed the trial expired 2026-06-10.** Official Day-14 digest: **-1.30%**. The MT5 login remained active after expiry and the EAs kept trading the zombie demo (GBPUSD_H1_SwingBreak opened a NEW 1.41-lot short at 23:56 UTC on 6/10; 3 positions open at stand-down, incl. the AUDJPY winner at ~+$693 float). **All post-expiry trades are EXCLUDED from the trial dataset** — the post-mortem window is 2026-05-28 00:00 → 2026-06-10 24:00 UTC, by `dealTimeMs`.

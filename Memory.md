@@ -723,6 +723,20 @@ Project-internal vocabulary. Add as the system grows so new sessions don't waste
 
 ---
 
+## Trial #1 Post-Mortem — Key Findings (2026-06-11)
+
+Full report: `research/trial_2026-05_postmortem.md` (reproducible via `trial_postmortem_analysis.py` + committed raw exports). The decisions/learnings that must survive context loss:
+
+- **CORRECTED P&L: the trial was breakeven-positive, not -0.83%.** Window (5/28 00:00 → 6/10 22:00 UTC) realized **+$164** (balance series $200,000.00 → $200,163.70), equity **≈ +$811** incl. the unbanked AUDJPY winner. The negative headline came from `accounts.initialCapital`, which is **mutable** (registerAccount overwrites on re-registration) — bug filed in M10; never use it as a P&L basis; jsonl/snapshot series are ground truth.
+- **Cluster days were the whole story:** +$5,569 on 7 normal days, **-$5,394 on the 3 USD-rip days** (6/01, 6/03, 6/10). Portfolio β(DXY) ≈ -$1,830 per +1% DXY (n=10, indicative). XAUUSD_LondonFix took 98% of its losses on cluster days (6-1 otherwise).
+- **Carriers:** EURUSD_M15_LondonMomo +$2,548 (PF 1.90) and XAUUSD_M15_LondonFix +$1,194 (PF 1.78). **Hurt:** GBPUSD_H1_SwingBreak -$1,972 (1-7, PF 0.17, 7-loss streak) — kill-lean. AUDJPY_H4 ambiguous (-$1,162 closed, +$647 unbanked winner = thesis mid-validation).
+- **LondonMomo's edge is chart-specific:** GBPUSD instance 5-2 +$2,693; EURUSD instance 2-2 -$145. Per-instance (EA×chart) accounting is mandatory going forward.
+- **Silent-EA red flag:** XAUUSD_H1_NewsReaction fired zero times despite NFP on 6/05 — trigger logic suspect, needs log replay before any judgment. RSIFade also silent 14 days.
+- **Costs:** commissions -$456 total (~0.23% of account per 14d — material at this P&L scale); spread not separable from deals (OnTradeTransaction upgrade fixes capture).
+- Multi-factor regression deliberately deferred to Tier-2 (4-5 regressors on n=10 days = overfitting theater; CLAUDE.md §2.3 over task-spec).
+
+---
+
 ## Session Handoff Notes
 
 When ending a coding session in a non-obvious state (mid-refactor, half-finished feature, hypothesis being tested), leave a note here so the next session resumes cleanly. **Delete entries once the next session resolves them.**
