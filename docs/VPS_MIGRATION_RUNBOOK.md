@@ -53,16 +53,23 @@ Run the portable installer (elevated PowerShell): `powershell -ExecutionPolicy B
 - [ ] Reboot the box once; verify: auto-logon lands on the desktop, MT5 relaunches + logs in, BotOrchestrator reattaches all 3 EAs, monitor task fires, heartbeat lands in Convex (<2 min).
 
 ## 7. Telemetry sanity (5 min)
-- [ ] `curl https://clever-malamute-966.convex.site/status?brokerLogin=<NEW>` → fresh snapshot, `mtConnected: true`, **4 eaStates: the 3 roster EAs with `dryRun: true` + EquityWatchdog with `dryRun: false`** (the watchdog is never dry-run by design). *FIXED 2026-06-11, found live on the VPS: eaStates had NEVER been wired (monitor never passed `ea_states` to post_heartbeat) AND the MT5 logs dir was hardcoded to the old box's path. Now: logs dir auto-discovered from `mt5.terminal_info().data_path`; init lines (`dry_run=true|false`) parsed into per-EA state, persisted to `logs/ea_states.json` so flags survive monitor restarts.*
+- [ ] `curl https://clever-malamute-966.convex.site/status?brokerLogin=<NEW>` → fresh snapshot, `mtConnected: true`, **4 eaStates: the 3 roster EAs + EquityWatchdog, dry-run flags matching the intended mode for this account** (USER DECISION 2026-06-11: the free-trial week runs **LIVE** — `dryRun: false` ×3 — see §8; the watchdog always shows false, it has no dry-run mode). *FIXED 2026-06-11, found live on the VPS: eaStates had NEVER been wired (monitor never passed `ea_states` to post_heartbeat) AND the MT5 logs dir was hardcoded to the old box's path. Now: logs dir auto-discovered from `mt5.terminal_info().data_path`; init lines (`dry_run=true|false`) parsed into per-EA state, persisted to `logs/ea_states.json` so flags survive monitor restarts.*
 - [ ] `npx convex run sinks:dispatchAlert '{"severity":"info","subject":"VPS live","body":"New box reporting."}'` → arrives on phone.
 
-## 8. The 7-day dry-run gate (the week that earns go-live)
-- [ ] Run the full stack in dry-run for 7 trading days. **Pass criteria (all must hold):**
+## 8. The live-fire trial gate (the week that earns the paid Challenge)
+> REDEFINED 2026-06-11 (user decision): this section was written as a 7-day DRY-RUN
+> gate when the next account was going to be the paid Challenge. A fresh FREE trial
+> sits in between, so the week runs **LIVE on the trial** (`InpDryRun=false` ×3) —
+> strictly more evidence at $0 risk: real fills, real news-gate blocks, real watchdog
+> interplay. The C2 live config was telemetry-verified 2026-06-11 (sizes 0.50/0.50/0.25%,
+> watchdog 3%/7% on exactly 200000.00).
+- [ ] Run the full stack LIVE for 7 trading days. **Pass criteria (all must hold):**
   - Zero internal-kill / FTMOImminent events; zero monitor gaps > 10 min.
-  - LondonMomo + LondonFix produce dry-run signals on most sessions; AUDJPY trail logs appear on H4 bars.
-  - **News-clock validation:** FOMC **6/17 18:00 UTC** and BoE **6/18 11:00 UTC** fall in this week. Verify (a) the survivors' logs show blackout skips AT those true UTC times, and (b) if NewsReaction is attached for observation, it evaluates the TRUE post-release bar (the 2026-06-11 TimeGMT fix's live test).
-  - Benched-EA evidence collection: RSIFade signal frequency, NewsReaction behavior → rejoin decisions per `research/silent_ea_replay_2026-06.md`.
-- [ ] **Go-live flip procedure (after the gate passes):** for each roster chart: Properties → `InpDryRun = false` → OK. Then the HARD CHECK (the dry-run-miss bug class killer): pull the latest heartbeat's `eaStates` from Convex and confirm **every TRADING roster EA reports `dryRun: false`** (EquityWatchdog always shows false; it has no dry-run mode). The flip re-inits each EA, which prints a fresh init line, which is exactly what updates eaStates — so the check reflects the flip within ~1 poll. No green light while any roster EA says true. Save profile again.
+  - LondonMomo + LondonFix produce signals on most sessions; AUDJPY trail logs appear on H4 bars.
+  - **News-clock validation:** FOMC **6/17 18:00 UTC** and BoE **6/18 11:00 UTC** fall in this week. Verify the survivors' logs show blackout skips AT those true UTC times — live, the gate must actually BLOCK real orders (the 2026-06-11 TimeGMT fix's live exam).
+  - **Execution evidence (live-only bonus):** per-fill slippage vs signal price, SafeFillingMode retcodes (no 10030/10031), OnTradeTransaction state resets firing on every close, cluster-cap gate logs when >1 EA holds risk.
+  - Benched-EA evidence collection: RSIFade signal frequency, NewsReaction behavior → rejoin decisions per `research/silent_ea_replay_2026-06.md` (requires attaching them dry-run for observation — optional, unmanaged by the orchestrator).
+- [ ] **Paid-Challenge arming procedure (moved from "go-live flip" — rehearse it AT purchase):** on the paid account the EAs attach dry-run-first during setup verification, then flip: per roster chart Properties → `InpDryRun = false` → OK. Then the HARD CHECK (the dry-run-miss bug class killer): pull the latest heartbeat's `eaStates` from Convex and confirm **every TRADING roster EA reports `dryRun: false`** (EquityWatchdog always shows false; it has no dry-run mode). The flip re-inits each EA → fresh init line → eaStates reflects it within ~1 poll. No green light while any roster EA says true. Save profile after. *The eaStates pathway caught a real plan-vs-box mismatch on its first run (2026-06-11) — trust telemetry, never the Experts-tab eyeball.*
 
 ## 9. Old box decommission (after 48h of clean VPS operation)
 - [ ] Old box: leave `logs/MONITOR_DISABLED` in place; disable/delete the four scheduled tasks (elevated); MT5 stays closed. Box becomes dev/research only.
@@ -76,6 +83,6 @@ Any step fails badly → the local box is a known-good fallback: delete its sent
 - **§2 .env additions:** `PUSHOVER_API_TOKEN` + `PUSHOVER_USER_KEY` are now REQUIRED in the local `.env` — the monitor's cross-channel degradation alert posts to Pushover directly (the one alert that must survive a Convex outage).
 - **§4 extra chart:** attach **EquityWatchdog** manually to the utility chart (NOT in the manifest — it has no symbol). Set `InpInitialCapital` to the account's TRUE initial sim capital (init refuses 0). Defaults: 3% daily / 7% max internal kills, 1s poll.
 - **§8 extra drills (dry-run week):**
-  - **Kill drill:** temporarily set the watchdog's `InpDailyKillPct` to `0.0001` on the demo → verify flatten-within-1s + `FTMO_KILL_ACTIVE=1` + alert → restore real inputs. Do NOT skip; this is the synthetic trip test from Tasks.md.
+  - **Kill drill:** temporarily set the watchdog's `InpDailyKillPct` to `0.0001` on the demo → verify flatten-within-1s + `FTMO_KILL_ACTIVE=1` + alert → restore real inputs. Do NOT skip; this is the synthetic trip test from Tasks.md. (EAs run LIVE this week — run the drill while flat, e.g. after 14:00 UTC when LondonFix has closed, or accept that it flattens real demo positions.)
   - **Outbox drill:** block the box's network ~10 min mid-session → verify snapshots queue to `logs/convex_outbox.jsonl` and drain in order on recovery (zero data loss).
 - **Vultr API key:** NOT needed for this runbook (console + RDP covers everything at one-box scale). If created later (automated snapshots / M11 fleet IaC): **never store it on the VPS itself** — a trading box must not hold the credential that controls its own infrastructure. Password manager only, and IP-restrict the key to home IP in Vultr's API settings.
