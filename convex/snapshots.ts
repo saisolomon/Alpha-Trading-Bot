@@ -55,12 +55,15 @@ export const record = mutation({
         recordedAt: now,
       });
     }
-    // Update denormalised cache on account row
-    await ctx.db.patch(args.accountId, {
-      latestBalance: args.balance,
-      latestEquity: args.equity,
-      latestSnapshotAt: now,
-    });
+    // NOTE (2026-06-11): the per-poll denormalised patch of the accounts row
+    // was REMOVED here. It made every 60s snapshot write contend on the
+    // single accounts document and produced OCC conflicts in production
+    // ("Documents read from or written to the 'accounts' table changed
+    // while this mutation was being run", observed 2026-06-10 under monitor
+    // restarts). Readers that want latest balance/equity/snapshot-time now
+    // derive them from the snapshots table at read time (see /accounts in
+    // http.ts). The accounts row is written only by registerAccount and
+    // setMonitoringPaused — both rare, human-scale events.
     return { snapshotId, snapshotCount: 1, positionCount: args.positions.length };
   },
 });

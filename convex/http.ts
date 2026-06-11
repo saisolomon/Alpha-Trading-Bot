@@ -224,12 +224,19 @@ http.route({
   method: "GET",
   handler: httpAction(async (ctx) => {
     const all = await ctx.runQuery(api.accounts.listAll, {});
-    const summary = all.map((a) => ({
-      brokerLogin: a.brokerLogin,
-      brokerServer: a.brokerServer,
-      accountType: a.accountType,
-      latestSnapshotAt: a.latestSnapshotAt,
-    }));
+    // latestSnapshotAt is derived from the snapshots table at read time
+    // (the denormalised accounts-row cache was removed 2026-06-11 to kill
+    // OCC contention on the hot path; see snapshots.ts record mutation).
+    const summary = [];
+    for (const a of all) {
+      const snap = await ctx.runQuery(api.snapshots.latest, { accountId: a._id });
+      summary.push({
+        brokerLogin: a.brokerLogin,
+        brokerServer: a.brokerServer,
+        accountType: a.accountType,
+        latestSnapshotAt: snap ? snap.recordedAt : (a.latestSnapshotAt ?? null),
+      });
+    }
     return new Response(JSON.stringify({ accounts: summary }), {
       status: 200,
       headers: { "content-type": "application/json" },

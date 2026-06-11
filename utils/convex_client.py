@@ -21,12 +21,21 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
 log = logging.getLogger(__name__)
+
+# Retry-with-backoff for transient failures (5xx / network), added 2026-06-11
+# after the 6/03 + 6/10 Convex blips. Three attempts with 1s, 4s sleeps:
+# worst case ~20s including timeouts, safely inside the 60s poll loop.
+# (The spec's 16s third sleep is intentionally dropped -- it would push the
+# worst case to ~45s and crowd the poll budget.) 4xx errors do NOT retry:
+# schema/auth failures are not transient.
+RETRY_SLEEPS = (1.0, 4.0)
 
 
 @dataclass
@@ -52,34 +61,50 @@ class ConvexClient:
 
     def _post(self, path: str, body: dict[str, Any]) -> dict | None:
         """POST JSON to a Convex HTTP Action. Returns the parsed JSON
-        response, or None on any error (logged but not raised)."""
+        response, or None on any error (logged but not raised).
+
+        Transient failures (HTTP 5xx, network errors, timeouts) are retried
+        per RETRY_SLEEPS. Client errors (4xx) and unexpected exceptions fail
+        immediately -- they are not transient."""
         url = f"{self.site_url}{path}"
-        try:
-            data = json.dumps(body).encode("utf-8")
-            req = urllib.request.Request(
-                url,
-                data=data,
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Ftmo-Bot-Secret": self.shared_secret,
-                },
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            body_str = e.read().decode("utf-8", errors="replace")[:200]
-            log.warning(
-                "ConvexClient POST %s failed: HTTP %d body=%s",
-                path, e.code, body_str,
-            )
-            return None
-        except (urllib.error.URLError, TimeoutError, OSError) as e:
-            log.warning("ConvexClient POST %s network error: %s", path, e)
-            return None
-        except Exception as e:
-            log.warning("ConvexClient POST %s unexpected error: %s", path, e)
-            return None
+        data = json.dumps(body).encode("utf-8")
+        last_err = "unknown"
+        attempts = len(RETRY_SLEEPS) + 1
+        for attempt in range(attempts):
+            try:
+                req = urllib.request.Request(
+                    url,
+                    data=data,
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Ftmo-Bot-Secret": self.shared_secret,
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                    return json.loads(resp.read().decode("utf-8"))
+            except urllib.error.HTTPError as e:
+                body_str = e.read().decode("utf-8", errors="replace")[:200]
+                if e.code < 500:
+                    # 4xx: our bug (schema/auth), retrying cannot help
+                    log.warning(
+                        "ConvexClient POST %s failed: HTTP %d body=%s",
+                        path, e.code, body_str,
+                    )
+                    return None
+                last_err = f"HTTP {e.code} body={body_str}"
+            except (urllib.error.URLError, TimeoutError, OSError) as e:
+                last_err = f"network error: {e}"
+            except Exception as e:
+                log.warning("ConvexClient POST %s unexpected error: %s", path, e)
+                return None
+            if attempt < len(RETRY_SLEEPS):
+                time.sleep(RETRY_SLEEPS[attempt])
+        log.warning(
+            "ConvexClient POST %s failed after %d attempts: %s",
+            path, attempts, last_err,
+        )
+        return None
 
     def post_heartbeat(
         self,

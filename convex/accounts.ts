@@ -21,11 +21,17 @@ export const registerAccount = mutation({
       .withIndex("byBrokerLogin", (q) => q.eq("brokerLogin", args.brokerLogin))
       .first();
     if (existing) {
-      // Patch any fields that changed (e.g. account type bumped after passing phase)
+      // Patch fields that legitimately change (e.g. account type bumped
+      // after passing a phase) -- but NEVER initialCapital. BUG FIX
+      // 2026-06-11: initialCapital was being overwritten with the
+      // current balance on every monitor restart, which (a) corrupted
+      // the trial's headline P&L for a day ($201,840 -> $200,167 across
+      // the 6/10 reboot) and (b) silently shifts FTMO limit math, which
+      // keys off initial capital. Immutable after first registration;
+      // the snapshot/jsonl series is the only P&L ground truth.
       await ctx.db.patch(existing._id, {
         brokerServer: args.brokerServer,
         accountType: args.accountType,
-        initialCapital: args.initialCapital,
         currency: args.currency,
       });
       return existing._id;
