@@ -26,19 +26,22 @@
 # The copy in repo/mql5/ is the source of truth and gets copied to the
 # MT5 location by scripts/deploy_mt5_files.ps1 (or manually).
 
-# === 2026-05-25: pivoted to M15 strategies on OANDA-Demo-1 ===
-# All previous D1 EAs deleted. New M15-optimized EAs will be added
-# here as they ship. BotOrchestrator (not listed here -- it IS the
-# supervisor) auto-deploys whatever is in this list.
+# === 2026-06-11: post-trial Config C2 roster (Tier-1 #39/#40 decisions) ===
+# Source: research/trial_2026-05_sizing_calibration.md + Memory.md decisions.
+# Sizes for next challenge: LondonMomo 0.50% (GBPUSD CHART ONLY — do NOT
+# re-attach the EURUSD chart instance), LondonFix 0.50%, AUDJPY 0.25%.
+# Aggregate cap 1.5%; USD-counter cluster sub-cap 0.75% (all three below
+# count as ONE cluster).
 #
-# Manifest is intentionally empty during the M15 build window.
-US500_M15_ORB
+# REMOVED (decisions logged in Memory.md 2026-06-11):
+#   GBPUSD_H1_SwingBreak    — killed (PF 0.17, 1-7; negative G at all sizes)
+#   US500_M15_ORB           — index-ORB retired; Stocks-in-Play version
+#                             revisits post-IBKR (Zarattini 2024)
+#   BTCUSD_M15_TrendFollow  — deferred to Hyperliquid (M11); file kept
+#   US100_H1_OvernightDrift — cut (no edge at conservative posterior, n=4)
+#   EURUSD_M15_RSIFade      — BENCHED pending silent-EA log replay (not killed)
+#   XAUUSD_H1_NewsReaction  — BENCHED pending replay (missed NFP 6/05 — suspect)
+#   EURGBP_H4_MeanReversion — BENCHED pending cointegration-stability gate
 EURUSD_M15_LondonMomo
-EURUSD_M15_RSIFade
 XAUUSD_M15_LondonFix
-BTCUSD_M15_TrendFollow
-GBPUSD_H1_SwingBreak
 AUDJPY_H4_TrendFollow
-XAUUSD_H1_NewsReaction
-EURGBP_H4_MeanReversion
-US100_H1_OvernightDrift

@@ -737,6 +737,29 @@ Full report: `research/trial_2026-05_postmortem.md` (reproducible via `trial_pos
 
 ---
 
+## Roster & Sizing Decisions — Tier-1 close-out (2026-06-11, user-ratified)
+
+Per `research/trial_2026-05_sizing_calibration.md` (Config C2) and the post-mortem. Manifest updated same day. **All provisional sizes re-confirm at Tier-2 bootstrap before the paid Challenge.**
+
+| EA | Decision | Rationale anchor |
+|---|---|---|
+| EURUSD_M15_LondonMomo | **KEEP @ 0.50%, GBPUSD chart ONLY** (EURUSD chart detached) | Only strongly-positive conservative-Kelly edge (+0.070 at p25); chart-specific edge finding |
+| XAUUSD_M15_LondonFix | **KEEP @ 0.50%** | Second positive edge (+0.049 at p25); 6-1 ex-cluster |
+| AUDJPY_H4_TrendFollow | **HOLD @ 0.25%** | n=3 closed + unbanked winner; unresolved |
+| GBPUSD_H1_SwingBreak | **KILLED** | PF 0.17, 1-7, negative G at every size; all methods agree |
+| US500_M15_ORB | **RETIRED (index version)** — Zarattini Stocks-in-Play version revisits post-IBKR (M11) | Negative mean R; adding it at any size raised max-line risk ~10× while lowering median (C1 vs C2) |
+| BTCUSD_M15_TrendFollow | **DEFERRED to Hyperliquid (M11)** — file kept, out of manifest | OANDA BTCUSD not 24/7 (thesis invalid on this broker) + dry-run bug; Tasks.md option 3 |
+| US100_H1_OvernightDrift | **CUT** | f*bin(p25) ≈ 0, G ≤ 0, $-5 on n=4 |
+| EURUSD_M15_RSIFade | **BENCHED** (not killed) | Silent 14 days — log replay required before judgment |
+| XAUUSD_H1_NewsReaction | **BENCHED** (not killed) | Silent INCLUDING NFP 6/05 — trigger logic suspect, replay required |
+| EURGBP_H4_MeanReversion | **BENCHED** | Silence statistically unremarkable; cointegration-stability gate decides |
+
+**Risk architecture adopted:** aggregate open-risk cap **1.5%** (was 2%); **NEW 0.75% USD-counter cluster sub-cap** (Momo+Fix+AUDJPY = one cluster — the structural fix for the 3 cluster days that decided the trial). C2 MC gates: P(daily touch) 0.00%, P(max touch) 0.02%, median +$6.7K/10d, p5 −$2.2K.
+
+**Standing principles from this round:** (1) per-instance (EA×chart) accounting always; (2) concentration into proven edge > diversification into unproven edge; (3) the +$10K target is a ~1.5-window pace at C2 median — do not sprint it.
+
+---
+
 ## Session Handoff Notes
 
 When ending a coding session in a non-obvious state (mid-refactor, half-finished feature, hypothesis being tested), leave a note here so the next session resumes cleanly. **Delete entries once the next session resolves them.**
