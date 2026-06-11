@@ -220,6 +220,7 @@ export const sendDailyReport = internalAction({
     const accounts = await ctx.runQuery(internal.accounts.listAllInternal, {});
     let sent = 0;
     for (const acc of accounts) {
+      if (acc.monitoringPaused) continue; // retired account: no digest
       const r: any = await ctx.runQuery(internal.reports.buildDailyReport, {
         accountId: acc._id,
       });
@@ -401,6 +402,7 @@ export const checkCorrelation = internalAction({
     const accounts = await ctx.runQuery(internal.accounts.listAllInternal, {});
     let alerted = 0;
     for (const acc of accounts) {
+      if (acc.monitoringPaused) continue; // retired account: no correlation alerts
       const r: any = await ctx.runQuery(internal.reports.buildCorrelationMatrix, {
         accountId: acc._id,
       });

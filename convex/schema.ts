@@ -38,6 +38,11 @@ export default defineSchema({
     latestBalance: v.optional(v.number()),
     latestEquity: v.optional(v.number()),
     latestSnapshotAt: v.optional(v.number()),
+    // When true, crons (heartbeat-staleness, daily digest, correlation) skip
+    // this account. Used for expired/retired accounts whose DATA we keep
+    // (post-mortems) but whose monitoring is over. Set via
+    // accounts.setMonitoringPaused; never delete an account just to silence it.
+    monitoringPaused: v.optional(v.boolean()),
   }).index("byBrokerLogin", ["brokerLogin"]),
 
   heartbeats: defineTable({

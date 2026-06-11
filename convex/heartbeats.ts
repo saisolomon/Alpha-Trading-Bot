@@ -49,6 +49,7 @@ export const findStaleAccounts = query({
       gapMs: number;
     }> = [];
     for (const acc of accounts) {
+      if (acc.monitoringPaused) continue; // retired account: keep data, no alerts
       const last = await ctx.db
         .query("heartbeats")
         .withIndex("byAccount_recordedAt", (q) => q.eq("accountId", acc._id))

@@ -23,6 +23,19 @@
 
 ---
 
+## OFFICIAL END + STAND-DOWN (2026-06-11)
+
+**FTMO confirmed the trial expired 2026-06-10.** Official Day-14 digest: **-1.30%**. The MT5 login remained active after expiry and the EAs kept trading the zombie demo (GBPUSD_H1_SwingBreak opened a NEW 1.41-lot short at 23:56 UTC on 6/10; 3 positions open at stand-down, incl. the AUDJPY winner at ~+$693 float). **All post-expiry trades are EXCLUDED from the trial dataset** — the post-mortem window is 2026-05-28 00:00 → 2026-06-10 24:00 UTC, by `dealTimeMs`.
+
+**Stand-down actions (2026-06-11), all reversible, ZERO data deleted:**
+1. **Convex:** new `monitoringPaused` flag on accounts, honored by all three crons (heartbeat-staleness, daily digest, correlation). Set `true` for 1600138423. All trial data (snapshots/deals/positions/signals/alerts) preserved for the post-mortem. *Never use `deleteByBrokerLogin` to silence a retired account — it nukes history.*
+2. **MT5:** terminal stopped. Positions left to FTMO's sweep (expired demo — no financial meaning).
+3. **Monitor:** sentinel kill-switch added to `paper_trade_monitor.py` + `logs/MONITOR_DISABLED` created (the scheduled tasks need elevation to disable, and `mt5.initialize()` would otherwise RELAUNCH the stopped terminal every 5 min). Lingering monitor processes killed; sentinel verified live (instant clean exit).
+
+**Re-enable for the next account (paid Challenge):** delete `logs/MONITOR_DISABLED`, relaunch MT5 with the new login, `npx convex run accounts:setMonitoringPaused '{"brokerLogin": <new>, "paused": false}'` (or just register the new account — new accounts default to monitored). Optional cleanup needing admin: `Disable-ScheduledTask` on the four FTMOBot tasks, or re-point them at the new setup.
+
+---
+
 ## TRIAL FINAL VERDICT (2026-06-10, Day 14 close)
 
 **Result: target missed; account never endangered; the data is the payoff.**

@@ -64,6 +64,25 @@ export const listAllInternal = internalQuery({
   },
 });
 
+// Pause/resume cron monitoring for an account WITHOUT deleting any data.
+// Used when an account is retired (e.g. trial expired) but its history must
+// survive for post-mortems. The alternative -- deleteByBrokerLogin -- nukes
+// all child rows, which is wrong for accounts we still want to analyse.
+// Call via:
+//   npx convex run accounts:setMonitoringPaused '{"brokerLogin":..., "paused":true}'
+export const setMonitoringPaused = mutation({
+  args: { brokerLogin: v.number(), paused: v.boolean() },
+  handler: async (ctx, args) => {
+    const account = await ctx.db
+      .query("accounts")
+      .withIndex("byBrokerLogin", (q) => q.eq("brokerLogin", args.brokerLogin))
+      .first();
+    if (!account) return { found: false };
+    await ctx.db.patch(account._id, { monitoringPaused: args.paused });
+    return { found: true, brokerLogin: args.brokerLogin, monitoringPaused: args.paused };
+  },
+});
+
 // Delete an account + all its associated heartbeats, snapshots,
 // positions, and deals. Used to clean up stale accounts after a broker
 // migration (e.g. when we switched from MetaQuotes-Demo -> OANDA-Demo-1

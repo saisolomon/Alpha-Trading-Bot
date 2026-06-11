@@ -108,6 +108,15 @@ def snapshot_account(client) -> dict:
 
 
 def main() -> None:
+    # Stand-down kill-switch: the scheduled task fires every 5 min and cannot
+    # be disabled without elevation, and mt5.initialize() would RELAUNCH the
+    # terminal we deliberately stopped. If the sentinel exists, exit before
+    # touching MT5. Re-enable monitoring by deleting logs/MONITOR_DISABLED.
+    sentinel = Path(__file__).resolve().parents[1] / "logs" / "MONITOR_DISABLED"
+    if sentinel.exists():
+        print(f"monitor disabled by sentinel {sentinel} -- exiting (delete the file to re-enable)")
+        return
+
     args = parse_args()
 
     # Lazy imports so the script can be syntax-checked without MT5 installed
