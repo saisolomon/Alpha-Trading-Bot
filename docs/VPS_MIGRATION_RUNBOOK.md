@@ -68,3 +68,11 @@ Recreate the four FTMOBot tasks (elevated PowerShell; mirror old-box settings):
 
 ## Rollback
 Any step fails badly → the local box is a known-good fallback: delete its sentinel, relaunch MT5 (old profile restores), re-enable monitor task. Decommission only after the VPS survives a reboot + 48h clean.
+
+---
+## Addendum 2026-06-11 (EquityWatchdog + alert independence)
+- **§2 .env additions:** `PUSHOVER_API_TOKEN` + `PUSHOVER_USER_KEY` are now REQUIRED in the local `.env` — the monitor's cross-channel degradation alert posts to Pushover directly (the one alert that must survive a Convex outage).
+- **§4 extra chart:** attach **EquityWatchdog** manually to the utility chart (NOT in the manifest — it has no symbol). Set `InpInitialCapital` to the account's TRUE initial sim capital (init refuses 0). Defaults: 3% daily / 7% max internal kills, 1s poll.
+- **§8 extra drills (dry-run week):**
+  - **Kill drill:** temporarily set the watchdog's `InpDailyKillPct` to `0.0001` on the demo → verify flatten-within-1s + `FTMO_KILL_ACTIVE=1` + alert → restore real inputs. Do NOT skip; this is the synthetic trip test from Tasks.md.
+  - **Outbox drill:** block the box's network ~10 min mid-session → verify snapshots queue to `logs/convex_outbox.jsonl` and drain in order on recovery (zero data loss).

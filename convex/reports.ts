@@ -161,19 +161,54 @@ export const buildDailyReport = internalQuery({
       .order("desc")
       .collect();
     // Per-EA realised P&L (sum of profit+swap+commission across exits)
-    const realisedByEA = new Map<string, { count: number; realisedPnl: number }>();
+    const realisedByEA = new Map<string, { count: number; wins: number; realisedPnl: number }>();
     let realisedPnlTotal = 0;
+    let bestDeal: { pnl: number; symbol: string; eaName: string | null } | null = null;
+    let worstDeal: { pnl: number; symbol: string; eaName: string | null } | null = null;
     for (const d of deals) {
       // Only count EXIT fills towards realised P&L (entries have profit=0)
       if (d.entry === "OUT" || d.entry === "OUT_BY" || d.entry === "INOUT") {
         const ea = d.eaName ?? d.symbol;
-        const cur = realisedByEA.get(ea) ?? { count: 0, realisedPnl: 0 };
+        const pnl = d.profit + d.swap + d.commission;
+        const cur = realisedByEA.get(ea) ?? { count: 0, wins: 0, realisedPnl: 0 };
         cur.count++;
-        cur.realisedPnl += d.profit + d.swap + d.commission;
+        if (pnl > 0) cur.wins++;
+        cur.realisedPnl += pnl;
         realisedByEA.set(ea, cur);
-        realisedPnlTotal += d.profit + d.swap + d.commission;
+        realisedPnlTotal += pnl;
+        if (!bestDeal || pnl > bestDeal.pnl) bestDeal = { pnl, symbol: d.symbol, eaName: d.eaName ?? null };
+        if (!worstDeal || pnl < worstDeal.pnl) worstDeal = { pnl, symbol: d.symbol, eaName: d.eaName ?? null };
       }
     }
+
+    // Prior day's minimum FTMO distances -> digest shows the TREND.
+    // Read from YESTERDAY'S digest alert (1 doc) instead of re-collecting a
+    // second full day of snapshots: the monitor writes ~10K snapshots/day,
+    // so a two-day collect() blows Convex's 32K read budget (hit in
+    // production verification 2026-06-11). Each digest stamps its own mins
+    // into its alert context; the trend line activates from the first
+    // post-upgrade digest onward.
+    let prevMinDailyDistance: number | null = null;
+    let prevMinMaxDistance: number | null = null;
+    const priorAlerts = await ctx.db
+      .query("alerts")
+      .withIndex("byAccount_severity", (q) =>
+        q.eq("accountId", args.accountId).eq("severity", "warning"),
+      )
+      .order("desc")
+      .take(20);
+    for (const a of priorAlerts) {
+      if (a.kind !== "daily_digest") continue;
+      if (a.recordedAt > now - 60 * 60 * 1000) continue; // skip same-run
+      try {
+        const c = JSON.parse(a.context ?? "{}");
+        if (typeof c.minDailyDistance === "number") prevMinDailyDistance = c.minDailyDistance;
+        if (typeof c.minMaxDistance === "number") prevMinMaxDistance = c.minMaxDistance;
+      } catch { /* old digests lack the fields; trend stays null */ }
+      break;
+    }
+    // NOTE: a trending-vs-ranging "regime breakdown" needs BAR data, which
+    // Convex does not ingest; deferred to the M11 regime-detection module.
 
     return {
       account,
@@ -198,6 +233,10 @@ export const buildDailyReport = internalQuery({
       dealCount: deals.length,
       realisedPnlTotal,
       realisedByEA: Array.from(realisedByEA.entries()).map(([name, v]) => ({ name, ...v })),
+      bestDeal,
+      worstDeal,
+      prevMinDailyDistance,
+      prevMinMaxDistance,
       // Top 10 most recent deals for the digest body
       recentDeals: deals.slice(0, 10).map((d) => ({
         time: d.dealTimeMs,
@@ -234,10 +273,33 @@ export const sendDailyReport = internalAction({
         .map((e: any) => `  - ${e.name}: ${e.count} open, P&L $${e.profit.toFixed(2)}, swap $${e.swap.toFixed(2)}`)
         .join("\n") || "  (no open positions)";
 
-      // Trade activity (closed deals in the last 24h)
+      // Trade activity (closed deals in the last 24h) with per-EA expectancy
       const realisedByEALines = (r.realisedByEA ?? [])
-        .map((e: any) => `  - ${e.name}: ${e.count} closed, realised $${e.realisedPnl.toFixed(2)}`)
+        .map((e: any) =>
+          `  - ${e.name}: ${e.count} closed (${e.wins ?? 0}W-${e.count - (e.wins ?? 0)}L), ` +
+          `avg $${(e.realisedPnl / e.count).toFixed(0)}/trade, total $${e.realisedPnl.toFixed(2)}`)
         .join("\n") || "  (no closed trades today)";
+
+      // Correlation snapshot (top pairs by |rho|; silently empty until the
+      // 14-day data-sufficiency floor in buildCorrelationMatrix is met)
+      const corr: any = await ctx.runQuery(internal.reports.buildCorrelationMatrix, {
+        accountId: acc._id,
+      });
+      const corrLines = (corr && corr.matrix && corr.matrix.length > 0)
+        ? corr.matrix
+            .slice()
+            .sort((a: any, b: any) => Math.abs(b.rho) - Math.abs(a.rho))
+            .slice(0, 3)
+            .map((m: any) => `  ${m.a} <-> ${m.b}: rho=${m.rho.toFixed(2)}`)
+            .join("\n")
+        : "  (insufficient history -- needs ~14 trading days)";
+
+      const trendDaily = (r.prevMinDailyDistance != null && isFinite(r.prevMinDailyDistance))
+        ? `  (prior 24h: $${r.prevMinDailyDistance.toFixed(2)}, change ${(r.minDailyDistance - r.prevMinDailyDistance) >= 0 ? "+" : ""}$${(r.minDailyDistance - r.prevMinDailyDistance).toFixed(2)})`
+        : "";
+      const trendMax = (r.prevMinMaxDistance != null && isFinite(r.prevMinMaxDistance))
+        ? `  (prior 24h: $${r.prevMinMaxDistance.toFixed(2)}, change ${(r.minMaxDistance - r.prevMinMaxDistance) >= 0 ? "+" : ""}$${(r.minMaxDistance - r.prevMinMaxDistance).toFixed(2)})`
+        : "";
       const dealLines = (r.recentDeals ?? [])
         .map((d: any) => {
           const t = new Date(d.time).toISOString().slice(11, 16);  // HH:MM
@@ -264,9 +326,20 @@ export const sendDailyReport = internalAction({
             `Trough: $${r.troughEquity.toFixed(2)}`,
             ``,
             `── FTMO ──`,
-            `Daily-line headroom (min): $${r.minDailyDistance.toFixed(2)}`,
-            `Max-line headroom (min):   $${r.minMaxDistance.toFixed(2)}`,
+            `Daily-line headroom (min): $${r.minDailyDistance.toFixed(2)}${trendDaily}`,
+            `Max-line headroom (min):   $${r.minMaxDistance.toFixed(2)}${trendMax}`,
             `Imminent ticks:            ${r.imminentTicks}`,
+            ``,
+            `── BEST / WORST CLOSED TRADE ──`,
+            (r.bestDeal
+              ? `  best:  $${r.bestDeal.pnl.toFixed(2)} ${r.bestDeal.symbol}${r.bestDeal.eaName ? ` [${r.bestDeal.eaName}]` : ""}`
+              : `  (no closed trades today)`),
+            (r.worstDeal
+              ? `  worst: $${r.worstDeal.pnl.toFixed(2)} ${r.worstDeal.symbol}${r.worstDeal.eaName ? ` [${r.worstDeal.eaName}]` : ""}`
+              : ``),
+            ``,
+            `── CORRELATION (top pairs by |rho|, 60d window) ──`,
+            corrLines,
             ``,
             `── EA SIGNALS (${r.totalSignalCount ?? 0} events in last 24h, includes DRY-RUN) ──`,
             ((r.signalsByEA ?? []).length === 0
@@ -297,6 +370,10 @@ export const sendDailyReport = internalAction({
         context: JSON.stringify({
           pnlPct: r.pnlPct,
           snapshotCount: r.snapshotCount,
+          // stamped so TOMORROW's digest can show the distance trend
+          // without re-reading today's ~10K snapshots
+          minDailyDistance: r.minDailyDistance,
+          minMaxDistance: r.minMaxDistance,
         }),
       });
       await ctx.runAction(internal.sinks.dispatchAlert, {

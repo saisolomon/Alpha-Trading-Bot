@@ -114,9 +114,79 @@ def test_network_error_retries_then_succeeds():
     print("PASS test_network_error_retries_then_succeeds")
 
 
+def test_outbox_queues_durable_payloads_only(tmp_path=None):
+    import tempfile
+    tmp = Path(tempfile.mkdtemp()) / "outbox.jsonl"
+
+    def fake_urlopen(req, timeout=None):
+        raise _http_error(503)
+
+    with mock.patch.object(cc_mod, "OUTBOX_PATH", tmp), \
+         mock.patch.object(cc_mod.urllib.request, "urlopen", fake_urlopen), \
+         mock.patch.object(cc_mod.time, "sleep"):
+        c = make_client()
+        c._post("/snapshot", {"k": 1})    # durable -> queued
+        c._post("/heartbeat", {"k": 2})   # ephemeral -> NOT queued
+    lines = tmp.read_text().splitlines()
+    assert len(lines) == 1, lines
+    item = json.loads(lines[0])
+    assert item["path"] == "/snapshot" and item["body"] == {"k": 1}
+    print("PASS test_outbox_queues_durable_payloads_only")
+
+
+def test_outbox_flush_replays_in_order_after_recovery():
+    import tempfile
+    tmp = Path(tempfile.mkdtemp()) / "outbox.jsonl"
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    tmp.write_text(
+        json.dumps({"ts": 1, "path": "/snapshot", "body": {"n": 1}}) + "\n"
+        + json.dumps({"ts": 2, "path": "/deals", "body": {"n": 2}}) + "\n"
+    )
+    urls = []
+
+    def fake_urlopen(req, timeout=None):
+        urls.append(req.full_url)
+        return _ok_response({"ok": True})
+
+    with mock.patch.object(cc_mod, "OUTBOX_PATH", tmp), \
+         mock.patch.object(cc_mod.urllib.request, "urlopen", fake_urlopen), \
+         mock.patch.object(cc_mod.time, "sleep"):
+        out = make_client()._post("/heartbeat", {"live": 1})
+    assert out == {"ok": True}
+    assert [u.split(".site")[1] for u in urls] == ["/heartbeat", "/snapshot", "/deals"], urls
+    assert tmp.read_text() == ""  # fully drained
+    print("PASS test_outbox_flush_replays_in_order_after_recovery")
+
+
+def test_direct_pushover_fires_at_threshold_once():
+    import tempfile
+    tmp = Path(tempfile.mkdtemp()) / "outbox.jsonl"
+    pushover_calls = []
+
+    def fake_urlopen(req, timeout=None):
+        if "pushover" in req.full_url:
+            pushover_calls.append(req.full_url)
+            return _ok_response({"status": 1})
+        raise _http_error(503)
+
+    env = {"PUSHOVER_API_TOKEN": "t", "PUSHOVER_USER_KEY": "u"}
+    with mock.patch.object(cc_mod, "OUTBOX_PATH", tmp), \
+         mock.patch.object(cc_mod.urllib.request, "urlopen", fake_urlopen), \
+         mock.patch.object(cc_mod.time, "sleep"), \
+         mock.patch.dict(cc_mod.os.environ, env):
+        c = make_client()
+        for _ in range(11):                 # 10th crosses threshold; 11th in cooldown
+            c._post("/heartbeat", {"x": 1})
+    assert len(pushover_calls) == 1, f"expected exactly 1 direct alert, got {len(pushover_calls)}"
+    print("PASS test_direct_pushover_fires_at_threshold_once")
+
+
 if __name__ == "__main__":
     test_5xx_then_200_returns_after_one_retry()
     test_triple_5xx_returns_none_without_raising()
     test_4xx_fails_fast_no_retry()
     test_network_error_retries_then_succeeds()
-    print("ALL RETRY TESTS PASS")
+    test_outbox_queues_durable_payloads_only()
+    test_outbox_flush_replays_in_order_after_recovery()
+    test_direct_pushover_fires_at_threshold_once()
+    print("ALL RETRY/OUTBOX/ALERT TESTS PASS")

@@ -324,3 +324,25 @@ void OnTick() {
    g_trail_sl = sl;
    SendEntry((target_dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl);
 }
+
+//+------------------------------------------------------------------+
+//| Event-driven exit detection (M10 Phase-A upgrade): on a broker-  |
+//| side close (trail SL hit) reset state and start the cooldown     |
+//| clock IMMEDIATELY -- previously this waited up to one H4 bar.    |
+//+------------------------------------------------------------------+
+void OnTradeTransaction(const MqlTradeTransaction &trans,
+                        const MqlTradeRequest &request,
+                        const MqlTradeResult &result) {
+   if(trans.type != TRADE_TRANSACTION_DEAL_ADD) return;
+   if(trans.symbol != _Symbol) return;
+   if(g_open_ticket == 0) return;
+   if(!HistoryDealSelect(trans.deal)) return;
+   if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(trans.deal, DEAL_ENTRY) != DEAL_ENTRY_OUT) return;
+   if(!PositionSelect(_Symbol)) {
+      PrintFormat("[AUDJPY_H4_TrendFollow:%s] position closed broker-side (deal #%I64u) -- state reset, cooldown starts",
+                  _Symbol, trans.deal);
+      g_open_ticket = 0;
+      g_pos_dir = 0;
+      g_bars_since_exit = 0;
+   }
+}

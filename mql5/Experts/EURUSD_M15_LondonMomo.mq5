@@ -331,3 +331,24 @@ void OnTick() {
    g_traded_this_session = true;
    SendEntry((dir == +1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, lots, sl, tp);
 }
+
+//+------------------------------------------------------------------+
+//| Event-driven exit detection (M10 Phase-A upgrade): learn about a |
+//| broker-side close (SL/TP hit) the instant it happens instead of  |
+//| at the next M15 bar. State reset only; session flags untouched   |
+//| (one-trade-per-session stands).                                   |
+//+------------------------------------------------------------------+
+void OnTradeTransaction(const MqlTradeTransaction &trans,
+                        const MqlTradeRequest &request,
+                        const MqlTradeResult &result) {
+   if(trans.type != TRADE_TRANSACTION_DEAL_ADD) return;
+   if(trans.symbol != _Symbol) return;
+   if(g_open_ticket == 0) return;
+   if(!HistoryDealSelect(trans.deal)) return;
+   if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(trans.deal, DEAL_ENTRY) != DEAL_ENTRY_OUT) return;
+   if(!PositionSelect(_Symbol)) {
+      PrintFormat("[EURUSD_M15_LondonMomo:%s] position closed broker-side (deal #%I64u) -- state reset",
+                  _Symbol, trans.deal);
+      g_open_ticket = 0;
+   }
+}
