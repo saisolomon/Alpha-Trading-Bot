@@ -133,6 +133,18 @@ def test_update_ea_states_fold_and_heartbeat_shape():
     print("PASS test_update_ea_states_fold_and_heartbeat_shape")
 
 
+def test_resolve_initial_capital_priority():
+    f = _mon.resolve_initial_capital
+    # CLI beats env beats balance
+    assert f(150000, "200000", 199500.0) == 150000.0
+    assert f(None, "200000", 199500.0) == 200000.0
+    assert f(None, None, 199500.0) == 199500.0
+    # Garbage / non-positive env falls through to balance
+    assert f(None, "not-a-number", 199500.0) == 199500.0
+    assert f(None, "0", 199500.0) == 199500.0
+    print("PASS test_resolve_initial_capital_priority")
+
+
 def test_sidecar_roundtrip_and_corruption_tolerance():
     tmp = Path(tempfile.mkdtemp()) / "ea_states.json"
     states = {"EURUSD_M15_LondonMomo":
@@ -159,5 +171,6 @@ if __name__ == "__main__":
     test_existing_event_types_unbroken()
     test_file_parse_utf16le_with_bom()
     test_update_ea_states_fold_and_heartbeat_shape()
+    test_resolve_initial_capital_priority()
     test_sidecar_roundtrip_and_corruption_tolerance()
     print("ALL INIT-PARSER / EASTATES TESTS PASS")

@@ -57,6 +57,27 @@ def parse_args() -> argparse.Namespace:
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EA_STATES_PATH = REPO_ROOT / "logs" / "ea_states.json"
 
+
+def resolve_initial_capital(cli_value, env_value, balance: float) -> float:
+    """Initial capital for the parallel FTMO risk machine, in priority order:
+    --initial-capital CLI arg > FTMO_INITIAL_CAPITAL env (.env) > current balance.
+
+    The balance fallback is a TRAP under the scheduled task (which passes no
+    CLI arg and recycles the monitor every ~4h): each restart would re-anchor
+    the FTMO limit math to whatever the balance drifted to, silently skewing
+    the reported limit distances (observed 2026-06-11: $9,979 vs true $9,583).
+    """
+    if cli_value:
+        return float(cli_value)
+    if env_value:
+        try:
+            v = float(env_value)
+            if v > 0:
+                return v
+        except (TypeError, ValueError):
+            pass
+    return float(balance)
+
 # Fallback only — normally the dir is discovered at runtime from the
 # CONNECTED terminal via mt5.terminal_info().data_path (the old hardcoded
 # path silently broke on the VPS: different user profile + terminal hash).
@@ -229,7 +250,10 @@ def main() -> None:
                   f"{sorted(ea_states)}", flush=True)
 
         info = client.account_info()
-        initial = args.initial_capital if args.initial_capital else float(info.balance)
+        import os as _os
+        initial = resolve_initial_capital(
+            args.initial_capital, _os.environ.get("FTMO_INITIAL_CAPITAL"),
+            float(info.balance))
         acct_type = FTMOAccountType(args.account_type)
         ftmo_state = new_state(acct_type, initial)
         print(f"[monitor] account={acct_type.value}  balance={info.balance:.2f}  "
