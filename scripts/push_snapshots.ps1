@@ -16,7 +16,8 @@
 #       -Action $action -Trigger $trigger -RunLevel Highest
 
 $ErrorActionPreference = "Stop"
-Set-Location C:\Users\saisolomon\ftmo-bot
+# Repo root = parent of this script's dir (portable: old box AND the VPS's C:\ftmo-bot)
+Set-Location (Split-Path $PSScriptRoot -Parent)
 
 $logFile = "logs\push_snapshots.log"
 New-Item -ItemType Directory -Force -Path "logs" | Out-Null

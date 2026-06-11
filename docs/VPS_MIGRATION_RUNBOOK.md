@@ -46,11 +46,11 @@ BotOrchestrator can only auto-heal EAs it has templates for; first attach is man
 - [ ] Old trial account stays paused (`monitoringPaused: true`) — do NOT delete it; its data is the post-mortem corpus.
 
 ## 6. Scheduled tasks (10 min)
-Recreate the four FTMOBot tasks (elevated PowerShell; mirror old-box settings):
-- [ ] `FTMOBot Paper-Trade Monitor` — every 5 min, `uv run python scripts/paper_trade_monitor.py --poll-seconds 60`, **ExecutionTimeLimit 4h**, MultipleInstances=IgnoreNew, "run whether logged in or not". *Open issue from 6/10: the 4h limit failed to recycle a hung instance once — after go-live, verify a manual `Stop-ScheduledTask` + auto-restart cycle works.*
+Run the portable installer (elevated PowerShell): `powershell -ExecutionPolicy Bypass -File scripts\setup_windows_tasks.ps1` (reworked 2026-06-11: paths derive from the script location; registers Monitor + Push only, reviews via `-IncludeReviews`).
+- [ ] `FTMOBot Paper-Trade Monitor` — at-logon + 5-min watchdog fire, `.venv` python directly, **ExecutionTimeLimit 4h**, MultipleInstances=IgnoreNew. The 5-min IgnoreNew fire restarts a dead instance; the 4h limit recycles a HUNG one (the 6/10 lesson — the old at-logon/RestartCount design couldn't).
 - [ ] `FTMOBot Paper-Trade Push` — hourly git add/commit/push of `data/paper_trade/`.
-- [ ] Daily/Weekly Review tasks — optional, recreate if still wanted.
-- [ ] Reboot the box once; verify: MT5 relaunches + logs in, BotOrchestrator reattaches all 3 EAs, monitor task fires, heartbeat lands in Convex (<2 min).
+- [ ] **CORRECTED 2026-06-11 — tasks use the interactive token ("run only when user is logged on"), NOT "run whether logged in or not":** the MetaTrader5 Python API attaches to the terminal in the SAME session; a cross-session (S4U/service) task silently launches a SECOND terminal instance. The pairing that makes this safe across reboots is **Windows auto-logon** (`netplwiz` → uncheck "Users must enter a user name and password" → enter the Administrator credentials; stored as an LSA secret, not plaintext registry). RDP **disconnect** (X button) keeps the console session logged on; never Sign Out.
+- [ ] Reboot the box once; verify: auto-logon lands on the desktop, MT5 relaunches + logs in, BotOrchestrator reattaches all 3 EAs, monitor task fires, heartbeat lands in Convex (<2 min).
 
 ## 7. Telemetry sanity (5 min)
 - [ ] `curl https://clever-malamute-966.convex.site/status?brokerLogin=<NEW>` → fresh snapshot, `mtConnected: true`, 3 eaStates **with `dryRun: true` visible**.
