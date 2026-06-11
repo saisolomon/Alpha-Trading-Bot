@@ -10,6 +10,7 @@
 - [ ] Contabo **Cloud VPS S** (or current equivalent ≥ 2 vCPU / 4 GB / 80 GB NVMe), **Windows Server 2022** image.
 - [ ] **Region: US East preferred, Nuremberg (EU) acceptable.** CORRECTED 2026-06-11: the original "EU, near OANDA's UK/EU infra" premise was an assumption; the trial's own MT5 logs show the terminal connecting via **"Access Server – NY"** (ping ~40ms), so US East minimizes hops to the observed access layer. Latency is irrelevant at M15+ either way — the criterion is routing stability + cost (non-EU regions carry a small Contabo surcharge; Nuremberg is the budget pick). Do not pick Asia/Oceania. Note: the paid Challenge's actual server is assigned by FTMO post-purchase and may differ from the trial's.
 - [ ] Record RDP credentials in the password manager (NOT in the repo).
+- [ ] *Acceptable alternatives (2026-06-11):* **Vultr New Jersey** (~$35-40/mo — better network consistency, one-click snapshots, hourly billing; the upgrade pick if cost is no object) or **AWS Lightsail us-east-1** (~$22-26/mo). Contabo remains the value default: its known weaknesses (oversold CPU, support) don't touch an idle MT5 workload, and our resilience stack absorbs network blips. NOT Hetzner for this box (no Windows images; it's the M11 Linux pick). This box is transitional (retired at the Nautilus migration) — don't over-invest.
 
 ## 1. Base box hardening (15 min)
 - [ ] RDP in; change the default admin password.
