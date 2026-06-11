@@ -25,16 +25,30 @@ from pathlib import Path
 class SignalEvent:
     ea_name: str        # e.g. "EURUSD_M15_LondonMomo"
     symbol: str         # e.g. "GBPUSD.sim"
-    event_type: str     # "entry" | "skip" | "range_locked" | "trail" | "close"
+    event_type: str     # "entry" | "skip" | "range_locked" | "trail" | "close" | "init"
     side: str | None    # "LONG"/"SHORT" for entries
     price: float | None
     volume: float | None
     event_time_ms: int  # ms since epoch (from log timestamp)
     raw_line: str
+    dry_run: bool | None = None  # only set for "init" events (parsed from dry_run=true/false)
 
 
 # Line patterns we recognise. EAs log in the format:
 #   [<EA_NAME>:<symbol>] <message>   OR   [<EA_NAME>] <message>
+#
+# Init lines carry the dry-run flag — the source of truth for the
+# heartbeat eaStates field and the go-live hard check:
+#   [EURUSD_M15_LondonMomo:GBPUSD.sim] init  session=07:00 UTC ... dry_run=true
+#   [EquityWatchdog] armed  initial=200000.00 ...   (watchdog is never dry-run)
+_INIT_RE = re.compile(
+    r"\[([\w]+)(?::([\w.]+))?\]\s+init\b.*?dry_run=(true|false)",
+    re.IGNORECASE,
+)
+_ARMED_RE = re.compile(
+    r"\[(EquityWatchdog)\]\s+armed\b",
+    re.IGNORECASE,
+)
 _ENTRY_RE = re.compile(
     r"\[([\w]+)(?::([\w.]+))?\]\s+ENTRY\s+(LONG|SHORT)?\s*"
     r".*?px=([\d.]+).*?(?:lots=|vol=)([\d.]+)",
@@ -80,7 +94,28 @@ def parse_line(file_date: datetime, raw_line: str) -> SignalEvent | None:
     hhmmss, rest = m.group(1), m.group(2)
     event_time_ms = _parse_timestamp(file_date, hhmmss)
 
-    # Try patterns in priority order (entry > close > range > skip > trail)
+    # Try patterns in priority order (init > entry > close > range > skip > trail)
+    im = _INIT_RE.search(rest)
+    if im:
+        ea, sym, flag = im.group(1), im.group(2), im.group(3)
+        return SignalEvent(
+            ea_name=ea, symbol=sym or "?",
+            event_type="init",
+            side=None, price=None, volume=None,
+            event_time_ms=event_time_ms,
+            raw_line=raw_line.strip()[:300],
+            dry_run=(flag.lower() == "true"),
+        )
+    am = _ARMED_RE.search(rest)
+    if am:
+        return SignalEvent(
+            ea_name=am.group(1), symbol="?",
+            event_type="init",
+            side=None, price=None, volume=None,
+            event_time_ms=event_time_ms,
+            raw_line=raw_line.strip()[:300],
+            dry_run=False,  # the watchdog is always live by design
+        )
     em = _ENTRY_RE.search(rest)
     if em:
         ea, sym, side, px, vol = em.group(1), em.group(2), em.group(3), em.group(4), em.group(5)

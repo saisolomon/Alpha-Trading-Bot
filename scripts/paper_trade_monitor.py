@@ -54,6 +54,78 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+EA_STATES_PATH = REPO_ROOT / "logs" / "ea_states.json"
+
+# Fallback only — normally the dir is discovered at runtime from the
+# CONNECTED terminal via mt5.terminal_info().data_path (the old hardcoded
+# path silently broke on the VPS: different user profile + terminal hash).
+LEGACY_MT5_LOGS_DIR = Path(
+    r"C:\Users\saisolomon\AppData\Roaming\MetaQuotes\Terminal"
+    r"\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Logs"
+)
+
+
+def discover_mt5_logs_dir() -> Path:
+    """Logs dir of the terminal this process is actually connected to."""
+    try:
+        import MetaTrader5 as mt5
+        ti = mt5.terminal_info()
+        data_path = getattr(ti, "data_path", "") if ti else ""
+        if data_path:
+            candidate = Path(data_path) / "MQL5" / "Logs"
+            if candidate.exists():
+                return candidate
+    except Exception:
+        pass
+    return LEGACY_MT5_LOGS_DIR
+
+
+def load_ea_states(path: Path) -> dict[str, dict]:
+    """Load the persisted per-EA state map ({name: {symbol, dryRun, lastLog}})."""
+    try:
+        with path.open(encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items()
+                    if isinstance(v, dict) and isinstance(v.get("dryRun"), bool)}
+    except Exception:
+        pass
+    return {}
+
+
+def save_ea_states(path: Path, states: dict[str, dict]) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(states, indent=1), encoding="utf-8")
+    except Exception:
+        pass  # sidecar is best-effort; heartbeats still carry the in-memory map
+
+
+def update_ea_states(states: dict[str, dict], events) -> bool:
+    """Fold parsed log events into the per-EA state map.
+
+    Only "init" events carry the dry-run flag, so an EA enters the map the
+    first time its init line is seen; every later event refreshes symbol +
+    lastLog. Returns True if anything changed (caller persists the sidecar).
+    """
+    changed = False
+    for e in events:
+        if e.event_type == "init" and e.dry_run is not None:
+            states[e.ea_name] = {
+                "symbol": e.symbol,
+                "dryRun": bool(e.dry_run),
+                "lastLog": e.raw_line[:160],
+            }
+            changed = True
+        elif e.ea_name in states:
+            if e.symbol and e.symbol != "?":
+                states[e.ea_name]["symbol"] = e.symbol
+            states[e.ea_name]["lastLog"] = e.raw_line[:160]
+            changed = True
+    return changed
+
+
 def setup_signal_handlers(stop_flag: list[bool]) -> None:
     def handler(signum, frame):
         print(f"\n[monitor] caught signal {signum}, shutting down cleanly...", flush=True)
@@ -135,11 +207,11 @@ def main() -> None:
     # MT5 Experts-tab log tailer state. Each poll reads NEW lines from
     # today's log file and POSTs parsed signal events to Convex.
     from utils.mt5_log_parser import parse_log_file_since, todays_log_path
-    MT5_LOGS_DIR = Path(
-        r"C:\Users\saisolomon\AppData\Roaming\MetaQuotes\Terminal"
-        r"\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Logs"
-    )
     log_tail_state = {"path": None, "offset": 0, "date": None}
+    # Per-EA state for the heartbeat eaStates field (go-live hard check).
+    # Seeded from the sidecar so dry-run flags survive monitor restarts
+    # (init lines only appear in the log when MT5/EAs (re)start).
+    ea_states: dict[str, dict] = load_ea_states(EA_STATES_PATH)
     from utils.timeutils import prague_midnight_of
 
     cfg = MT5Config()
@@ -147,6 +219,15 @@ def main() -> None:
     client = MT5Client.from_config(cfg)
     client.connect()
     try:
+        # Resolve the CONNECTED terminal's log dir (box-portable; the path
+        # differs per user profile + terminal install hash).
+        mt5_logs_dir = discover_mt5_logs_dir()
+        print(f"[monitor] MT5 Experts logs dir: {mt5_logs_dir} "
+              f"(exists={mt5_logs_dir.exists()})", flush=True)
+        if ea_states:
+            print(f"[monitor] eaStates seeded from sidecar: "
+                  f"{sorted(ea_states)}", flush=True)
+
         info = client.account_info()
         initial = args.initial_capital if args.initial_capital else float(info.balance)
         acct_type = FTMOAccountType(args.account_type)
@@ -254,8 +335,12 @@ def main() -> None:
                     account_type=acct_type.value,
                     initial_capital=initial,
                     currency="USD",
-                    monitor_version="paper_trade_monitor-0.2-convex",
+                    monitor_version="paper_trade_monitor-0.3-eastates",
                     mt_connected=True,
+                    ea_states=[
+                        {"name": name, **st}
+                        for name, st in sorted(ea_states.items())
+                    ],
                 )
                 convex.post_snapshot(
                     broker_login=int(cfg.login),
@@ -323,7 +408,7 @@ def main() -> None:
                 # Each poll reads only NEW bytes from today's log file
                 # using a per-file high-water-mark offset. Cheap.
                 try:
-                    cur_log_path, cur_log_date = todays_log_path(MT5_LOGS_DIR)
+                    cur_log_path, cur_log_date = todays_log_path(mt5_logs_dir)
                     # Reset offset if we rolled over to a new day's log file
                     if log_tail_state["path"] != cur_log_path or log_tail_state["date"] != cur_log_date:
                         log_tail_state["path"] = cur_log_path
@@ -336,6 +421,8 @@ def main() -> None:
                     )
                     log_tail_state["offset"] = new_offset
                     if events:
+                        if update_ea_states(ea_states, events):
+                            save_ea_states(EA_STATES_PATH, ea_states)
                         event_dicts = [{
                             "eaName": e.ea_name,
                             "symbol": e.symbol,

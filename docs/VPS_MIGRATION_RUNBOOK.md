@@ -53,7 +53,7 @@ Run the portable installer (elevated PowerShell): `powershell -ExecutionPolicy B
 - [ ] Reboot the box once; verify: auto-logon lands on the desktop, MT5 relaunches + logs in, BotOrchestrator reattaches all 3 EAs, monitor task fires, heartbeat lands in Convex (<2 min).
 
 ## 7. Telemetry sanity (5 min)
-- [ ] `curl https://clever-malamute-966.convex.site/status?brokerLogin=<NEW>` → fresh snapshot, `mtConnected: true`, 3 eaStates **with `dryRun: true` visible**.
+- [ ] `curl https://clever-malamute-966.convex.site/status?brokerLogin=<NEW>` → fresh snapshot, `mtConnected: true`, **4 eaStates: the 3 roster EAs with `dryRun: true` + EquityWatchdog with `dryRun: false`** (the watchdog is never dry-run by design). *FIXED 2026-06-11, found live on the VPS: eaStates had NEVER been wired (monitor never passed `ea_states` to post_heartbeat) AND the MT5 logs dir was hardcoded to the old box's path. Now: logs dir auto-discovered from `mt5.terminal_info().data_path`; init lines (`dry_run=true|false`) parsed into per-EA state, persisted to `logs/ea_states.json` so flags survive monitor restarts.*
 - [ ] `npx convex run sinks:dispatchAlert '{"severity":"info","subject":"VPS live","body":"New box reporting."}'` → arrives on phone.
 
 ## 8. The 7-day dry-run gate (the week that earns go-live)
@@ -62,7 +62,7 @@ Run the portable installer (elevated PowerShell): `powershell -ExecutionPolicy B
   - LondonMomo + LondonFix produce dry-run signals on most sessions; AUDJPY trail logs appear on H4 bars.
   - **News-clock validation:** FOMC **6/17 18:00 UTC** and BoE **6/18 11:00 UTC** fall in this week. Verify (a) the survivors' logs show blackout skips AT those true UTC times, and (b) if NewsReaction is attached for observation, it evaluates the TRUE post-release bar (the 2026-06-11 TimeGMT fix's live test).
   - Benched-EA evidence collection: RSIFade signal frequency, NewsReaction behavior → rejoin decisions per `research/silent_ea_replay_2026-06.md`.
-- [ ] **Go-live flip procedure (after the gate passes):** for each roster chart: Properties → `InpDryRun = false` → OK. Then the HARD CHECK (the dry-run-miss bug class killer): pull the latest heartbeat's `eaStates` from Convex and confirm **every roster EA reports `dryRun: false`**. No green light while any roster EA says true. Save profile again.
+- [ ] **Go-live flip procedure (after the gate passes):** for each roster chart: Properties → `InpDryRun = false` → OK. Then the HARD CHECK (the dry-run-miss bug class killer): pull the latest heartbeat's `eaStates` from Convex and confirm **every TRADING roster EA reports `dryRun: false`** (EquityWatchdog always shows false; it has no dry-run mode). The flip re-inits each EA, which prints a fresh init line, which is exactly what updates eaStates — so the check reflects the flip within ~1 poll. No green light while any roster EA says true. Save profile again.
 
 ## 9. Old box decommission (after 48h of clean VPS operation)
 - [ ] Old box: leave `logs/MONITOR_DISABLED` in place; disable/delete the four scheduled tasks (elevated); MT5 stays closed. Box becomes dev/research only.
