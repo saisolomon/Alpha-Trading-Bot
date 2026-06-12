@@ -181,6 +181,12 @@ class ConvexClient:
         except Exception as e:  # alerting must never crash the monitor
             log.warning("direct pushover failed: %s", e)
 
+    def send_direct_alert(self, title: str, message: str) -> None:
+        """Public direct-Pushover send for caller-detected critical events
+        (e.g. the monitor parsing a watchdog KILL line). Bypasses Convex by
+        design; caller owns dedupe/cooldown."""
+        self._direct_pushover(title, message)
+
     # ------------------------------------------------------------------ #
     # Durable-payload outbox (replayed in order after recovery)
     # ------------------------------------------------------------------ #

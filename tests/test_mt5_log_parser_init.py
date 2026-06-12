@@ -133,6 +133,51 @@ def test_update_ea_states_fold_and_heartbeat_shape():
     print("PASS test_update_ea_states_fold_and_heartbeat_shape")
 
 
+KILL_ALERT_LINE = ("EO\t0\t03:12:05.001\tEquityWatchdog (EURUSD.sim,H1)\t"
+                   "Alert: EquityWatchdog MAX_KILL: equity 199583.71 <= line "
+                   "(daily 199563.71 / max 199980.00) -- FLATTENED")
+KILL_FLAT_LINE = ("EO\t0\t03:12:05.002\tEquityWatchdog (EURUSD.sim,H1)\t"
+                  "[EquityWatchdog] FLATTENED GBPUSD.sim ticket=12345 (DAILY_KILL)")
+KILL_FAIL_LINE = ("EO\t0\t03:12:05.003\tEquityWatchdog (EURUSD.sim,H1)\t"
+                  "[EquityWatchdog] FLATTEN FAILED XAUUSD.sim ticket=99 retcode=10031 "
+                  "-- will retry next second")
+DISARMED_LINE = ("EO\t0\t03:14:00.000\tEquityWatchdog (EURUSD.sim,H1)\t"
+                 "[EquityWatchdog] disarmed reason=5")
+
+
+def test_watchdog_kill_lines_parse_as_kill_events():
+    for line in (KILL_ALERT_LINE, KILL_FLAT_LINE, KILL_FAIL_LINE):
+        ev = parse_line(FILE_DATE, line)
+        assert ev is not None and ev.event_type == "kill", (line, ev)
+        assert ev.ea_name == "EquityWatchdog"
+        assert ev.symbol == "EURUSD.sim"
+    # armed / disarmed must NOT register as kills
+    armed = parse_line(FILE_DATE, ARMED)
+    assert armed.event_type == "init"
+    assert parse_line(FILE_DATE, DISARMED_LINE) is None
+    print("PASS test_watchdog_kill_lines_parse_as_kill_events")
+
+
+def test_kill_alert_fires_once_and_respects_freshness():
+    f = _mon.should_fire_kill_alert
+    kill = parse_line(FILE_DATE, KILL_ALERT_LINE)
+    now = kill.event_time_ms + 60_000  # 1 min after the kill
+
+    fire, hwm = f([kill], 0, now)
+    assert fire is True and hwm == kill.event_time_ms
+    # same event again (next poll re-parse) -> no re-page
+    fire2, hwm2 = f([kill], hwm, now + 60_000)
+    assert fire2 is False and hwm2 == hwm
+    # stale kill (monitor restart re-reading an old log) -> quiet, but HWM advances
+    fire3, hwm3 = f([kill], 0, kill.event_time_ms + _mon.KILL_ALERT_FRESHNESS_MS + 1)
+    assert fire3 is False and hwm3 == kill.event_time_ms
+    # no kill events at all -> untouched
+    entry = parse_line(FILE_DATE, ENTRY)
+    fire4, hwm4 = f([entry], 7, now)
+    assert fire4 is False and hwm4 == 7
+    print("PASS test_kill_alert_fires_once_and_respects_freshness")
+
+
 def test_resolve_initial_capital_priority():
     f = _mon.resolve_initial_capital
     # CLI beats env beats balance
@@ -171,6 +216,8 @@ if __name__ == "__main__":
     test_existing_event_types_unbroken()
     test_file_parse_utf16le_with_bom()
     test_update_ea_states_fold_and_heartbeat_shape()
+    test_watchdog_kill_lines_parse_as_kill_events()
+    test_kill_alert_fires_once_and_respects_freshness()
     test_resolve_initial_capital_priority()
     test_sidecar_roundtrip_and_corruption_tolerance()
     print("ALL INIT-PARSER / EASTATES TESTS PASS")

@@ -49,6 +49,17 @@ _ARMED_RE = re.compile(
     r"\[(EquityWatchdog)\]\s+armed\b",
     re.IGNORECASE,
 )
+# Watchdog KILL lines — the phone-alert trigger. Drill 2026-06-12 found
+# the EA's Alert() is a VPS-screen popup only; the monitor parses these
+# and fires the direct-Pushover path instead. When the book is flat the
+# Alert line is the ONLY kill evidence (FlattenAll over 0 positions
+# prints nothing), so both shapes must match:
+#   "Alert: EquityWatchdog MAX_KILL: equity ... -- FLATTENED"
+#   "[EquityWatchdog] FLATTENED EURUSD.sim ticket=123 (DAILY_KILL)"
+_KILL_RE = re.compile(
+    r"EquityWatchdog[\]:]?\s+(?:(MAX_KILL|DAILY_KILL)\b|FLATTEN(?:ED)?\b)",
+    re.IGNORECASE,
+)
 # BotOrchestrator has no dry-run flag either; both its one-time init line
 # and its ~30-min "poll #N" summary count as state-bearing (the summary
 # keeps its lastLog fresh — liveness for the component whose silent death
@@ -107,7 +118,16 @@ def parse_line(file_date: datetime, raw_line: str) -> SignalEvent | None:
     pm = _CHART_PREFIX_RE.match(rest)
     chart_sym = pm.group(2) if pm else None  # symbol of the chart that logged
 
-    # Try patterns in priority order (init > entry > close > range > skip > trail)
+    # Try patterns in priority order (kill > init > entry > close > range > skip > trail)
+    km = _KILL_RE.search(rest)
+    if km:
+        return SignalEvent(
+            ea_name="EquityWatchdog", symbol=chart_sym or "?",
+            event_type="kill",
+            side=None, price=None, volume=None,
+            event_time_ms=event_time_ms,
+            raw_line=raw_line.strip()[:300],
+        )
     im = _INIT_RE.search(rest)
     if im:
         ea, sym, flag = im.group(1), im.group(2), im.group(3)

@@ -147,6 +147,30 @@ def update_ea_states(states: dict[str, dict], events) -> bool:
     return changed
 
 
+KILL_ALERT_FRESHNESS_MS = 15 * 60 * 1000  # ignore kill lines older than 15 min
+                                          # (monitor restarts re-read today's
+                                          # log from offset 0 — stale kills
+                                          # must not re-page the phone)
+
+
+def should_fire_kill_alert(events, last_alerted_ms: int, now_ms: int) -> tuple[bool, int]:
+    """Decide whether parsed log events warrant the direct kill page.
+
+    Returns (fire, newest_kill_ms). Fires only for kill events that are
+    BOTH newer than anything already alerted AND fresh (within
+    KILL_ALERT_FRESHNESS_MS of now). Caller persists newest_kill_ms.
+    """
+    kill_ms = [e.event_time_ms for e in events if e.event_type == "kill"]
+    if not kill_ms:
+        return False, last_alerted_ms
+    newest = max(kill_ms)
+    if newest <= last_alerted_ms:
+        return False, last_alerted_ms
+    if now_ms - newest > KILL_ALERT_FRESHNESS_MS:
+        return False, newest  # advance the high-water mark, but stay quiet
+    return True, newest
+
+
 def setup_signal_handlers(stop_flag: list[bool]) -> None:
     def handler(signum, frame):
         print(f"\n[monitor] caught signal {signum}, shutting down cleanly...", flush=True)
@@ -229,6 +253,7 @@ def main() -> None:
     # today's log file and POSTs parsed signal events to Convex.
     from utils.mt5_log_parser import parse_log_file_since, todays_log_path
     log_tail_state = {"path": None, "offset": 0, "date": None}
+    last_kill_alert_ms = 0
     # Per-EA state for the heartbeat eaStates field (go-live hard check).
     # Seeded from the sidecar so dry-run flags survive monitor restarts
     # (init lines only appear in the log when MT5/EAs (re)start).
@@ -447,6 +472,20 @@ def main() -> None:
                     if events:
                         if update_ea_states(ea_states, events):
                             save_ea_states(EA_STATES_PATH, ea_states)
+                        # Watchdog kill -> page the phone DIRECTLY (drill
+                        # 2026-06-12: the EA's Alert() never leaves the VPS
+                        # screen; this is the only path that reaches a human).
+                        fire, last_kill_alert_ms = should_fire_kill_alert(
+                            events, last_kill_alert_ms,
+                            int(time.time() * 1000))
+                        if fire:
+                            kill_raw = [e.raw_line for e in events
+                                        if e.event_type == "kill"][-1]
+                            print(f"[monitor] WATCHDOG KILL detected -> direct page: "
+                                  f"{kill_raw[:120]}", flush=True)
+                            convex.send_direct_alert(
+                                "FTMO KILL TRIPPED (watchdog)",
+                                kill_raw[:400])
                         event_dicts = [{
                             "eaName": e.ea_name,
                             "symbol": e.symbol,
