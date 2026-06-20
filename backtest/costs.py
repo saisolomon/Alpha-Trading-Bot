@@ -80,6 +80,20 @@ XAUUSD_SPEC = SymbolSpec(
 )
 
 
+AUDJPY_SPEC = SymbolSpec(
+    symbol="AUDJPY",
+    contract_size=100_000,
+    point=0.001,           # MT5 JPY-cross point (3-digit)
+    tick_value=0.67,       # ~$ per point per lot at USDJPY~150 (APPROX; see note)
+    commission_per_lot=3.0,
+    avg_spread_points=5.0,
+)
+# NOTE on tick_value for sizing/edge: lots = risk$/(stop_dist/point*tick_value) and
+# pnl = (exit-entry)/point*tick_value*lots, so tick_value CANCELS in the R-multiple —
+# % returns / Sharpe / PF / win-rate are invariant to a tick_value approximation. It
+# only scales the displayed lot count + the (second-order) commission/slippage cost.
+
+
 @dataclass(frozen=True)
 class CostModel:
     """Execution cost assumptions for backtesting.

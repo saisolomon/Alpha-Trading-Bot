@@ -411,6 +411,17 @@ class BacktestEngine:
             positions.clear()
 
         if not signal.is_flat:
+            # Same-direction signal while already in a position = MODIFY the
+            # open position's stops in place (trailing-stop support). The engine
+            # has no add-to/pyramid path; our roster uses this only to ratchet
+            # SL/TP (e.g. AUDJPY_H4_TrendFollow). No new fill, no commission.
+            if positions and positions[0].direction == signal.direction:
+                pos = positions[0]
+                if signal.stop_loss_price is not None:
+                    pos.stop_loss_price = signal.stop_loss_price
+                if signal.take_profit_price is not None:
+                    pos.take_profit_price = signal.take_profit_price
+                return cash
             fill = cost.fill_price(bar_open, signal.direction, spec, signal.size, bar_vol)
             comm = cost.commission(signal.size, spec)
             cash -= comm
