@@ -89,3 +89,6 @@ node_modules/
 
 # TypeScript build cache (Convex CLI generates these)
 *.tsbuildinfo
+
+# Reproducible historical-data cache (pulled by backtest/fetch_history.py)
+data/history/
