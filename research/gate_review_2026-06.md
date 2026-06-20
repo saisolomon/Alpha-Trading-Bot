@@ -29,7 +29,7 @@ This is **out-of-sample falsification of the sizing model's tail.** It is strong
 
 NO-GO is **conditional and cheap to revisit** — days of harness work, not months:
 
-1. **Model re-validation** — append the live week to the C2 sizing MC, re-estimate the loss distribution, confirm realized P&L sits inside a re-estimated p5. (Directly answers the tail falsification.)
+1. **Model re-validation** — append the live week to the C2 sizing MC, re-estimate the loss distribution, confirm realized P&L sits inside a re-estimated p5. (Directly answers the tail falsification.) **→ RESOLVED 2026-06-20: FAILS.** `mc_revalidation_2026-06.md`: live week = 1.84th pctile of the May-only distribution; pooling it in, C2 full-size breaches the max-loss gate 13.7× (P(max touch) 1.37% vs 0.1%); p5 −$2.8k→−$8.9k; median edge +$6,089→~+$605. Safe only at ≤0.60× C2, but edge ≈0 at any size. So sizing must come down **and** real edge must be found — reinforces the harness pivot.
 2. **Cluster-gate confirmation** — produce ONE live-or-replay observation that the 0.75% USD-counter sub-cap actually *fired* on a USD-cluster day. (This week's losses are the same cluster legs May diagnosed, but no one confirmed the fix triggered, or that a cluster day even occurred.)
 3. **Roster parity** — verify the deployed live manifest == corrected-C2 (SwingBreak/ORB/Drift cut, EURUSD-Momo EURUSD-chart detached, sub-cap wired). Every lens inherited the C2 framing without re-checking it against the live manifest.
 
