@@ -443,10 +443,20 @@ Captured 2026-05-30 mid-trial as the user asked for the persisted backlog. Order
 
 ### Tier 2.5 — Pre-Challenge gate
 
-- [ ] **Final dry-run on demo identical to purchased Challenge tier.** Per CLAUDE.md / Tasks M6 pre-checklist: 7 days zero-violation dry-run on a demo configured to the same starting capital and rules as the paid Challenge before purchase.
-  *Acceptance:* 7 consecutive trading days, zero internal-kill events, zero FTMOImminent events.
+- [x] **Final dry-run on demo identical to purchased Challenge tier.** `# DONE 2026-06-20 — ran as the live-fire week 6/11-6/19 on the fresh OANDA trial. Result: SYSTEM PASS (zero kills, zero FTMOImminent, $14,910 floor headroom through an adverse week), STRATEGY FAIL (-2.54%, 4W/8L; combined 53-trade live record shows no edge, mild negative drift). Full verdict: research/gate_review_2026-06.md.`
+  *Acceptance:* 7 consecutive trading days, zero internal-kill events, zero FTMOImminent events. ✓ on safety; edge not demonstrated.
 
-- [ ] **Purchase paid 2-Step Challenge** (size TBD — likely $25K tier per `Tasks.md` M6 default). Update `FTMOAccountType` config, update `bot_manifest.txt` if any EA list changes.
+- [x] **Gate review (2026-06-20).** `# DONE — research/gate_review_2026-06.md. 5-lens + adversarial workflow. DECISION: NO-GO on the paid Challenge; pivot to the walk-forward harness. Decisive finding (adversary-caught): the live week's -$5,090 breached the C2 sizing MC's OWN pre-registered p5 of -$2,244 by ~2.3x = out-of-sample falsification of the sizing-model tail. Per-EA: RSIFade KILL; NewsReaction keep-benched; LondonFix = classification (c) session-momentum, keep 0.50% no fix-guard (research/londonfix_fixing_review_2026-06.md, closes #46).`
+
+- [ ] **GO conditions to RE-OFFER the paid Challenge (all three must clear — days of harness work, not months).**
+  1. **Model re-validation** — append the live week to the C2 sizing MC, re-estimate the loss distribution, confirm realized P&L sits inside a re-estimated p5. (Answers the tail falsification that blocks deployment.)
+  2. **Cluster-gate confirmation** — produce ONE live-or-replay observation that the 0.75% USD-counter sub-cap actually FIRED on a USD-cluster day (this week's losses are the same cluster legs May diagnosed, but no one confirmed the gate triggered or that a cluster day occurred).
+  3. **Roster parity** — verify the deployed live manifest == corrected-C2 (SwingBreak/ORB/Drift cut, EURUSD-Momo EURUSD-chart detached, sub-cap wired).
+  *Acceptance:* all three documented as cleared; only then revisit purchase. Until then the trial account runs frozen-C2 (free; safety data still useful) and NO money goes to a paid Challenge.
+
+- [ ] **KILL RSIFade (EURUSD_M15_RSIFade).** `# Gate verdict 2026-06-20: 0 of 490 signal events in the live-fire week, consistent with 1 signal/14 days in the replay — failed its "fire with sane frequency" rejoin gate. A non-firing EA has no testable edge and is pure operational drag.` Detach from its VPS chart at the next visit; record in bot_manifest.txt decision block (BENCHED -> KILLED). Revival is free if re-specced to an evaluable frequency.
+
+- [ ] **Purchase paid 2-Step Challenge** — **BLOCKED on the three GO conditions above (gate review 2026-06-20 = NO-GO).** Size TBD ($100k ~$540 / $200k ~$1,080). Update `FTMOAccountType` config + `bot_manifest.txt` if the EA list changes.
   *Acceptance:* Challenge credentials in `.env`, bot pointed at Challenge account, first heartbeat lands in Convex.
 
 ---

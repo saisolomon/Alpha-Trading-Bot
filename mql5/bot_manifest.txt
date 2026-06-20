@@ -39,8 +39,14 @@
 #                             revisits post-IBKR (Zarattini 2024)
 #   BTCUSD_M15_TrendFollow  — deferred to Hyperliquid (M11); file kept
 #   US100_H1_OvernightDrift — cut (no edge at conservative posterior, n=4)
-#   EURUSD_M15_RSIFade      — BENCHED pending silent-EA log replay (not killed)
-#   XAUUSD_H1_NewsReaction  — BENCHED pending replay (missed NFP 6/05 — suspect)
+#   EURUSD_M15_RSIFade      — KILLED 2026-06-20 (gate review): 0 of 490 signal
+#                             events in the live-fire week; failed its "fire with
+#                             sane frequency" rejoin gate. Non-firing = no testable
+#                             edge. Revival free if re-specced. (was BENCHED)
+#   XAUUSD_H1_NewsReaction  — BENCHED-OBSERVING (gate review 2026-06-20): clock fix
+#                             PROVEN (evaluated correct post-BoE 12:00 bar) but one
+#                             non-firing event = proof-of-mechanism, not edge. Stays
+#                             dry-run; next FOMC/CPI/NFP-class event = free re-test.
 #   EURGBP_H4_MeanReversion — BENCHED pending cointegration-stability gate
 EURUSD_M15_LondonMomo
 XAUUSD_M15_LondonFix
