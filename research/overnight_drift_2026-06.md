@@ -58,7 +58,21 @@ not settled until we have FTMO's actual numbers.
    overnight holds are penalized by retail CFD financing; the cleanest home is futures
    (self-funded/MFF) or a low-financing broker.
 
-## Status
+## RESOLVED 2026-06-20 — financing measured, overnight drift is DEAD on FTMO
 
-Real gross edge, FTMO-viability financing-gated. The hunt found a genuine high-Sharpe
-candidate; the next move is a 5-minute data check (FTMO swap rates), not more modeling.
+Queried the live OANDA-Demo-1 terminal (`backtest/mt5_swaps.py`): **US100/US30/US500 long swap
+= −6.15 to −6.16%/yr** (INTEREST_CURRENT mode — authoritative, the real server). Plugged in:
+
+| spread/fill | net ann% | net Sharpe | yrs to +10% |
+|---|---|---|---|
+| 0.5bp | +3.6% | 0.32 | 2.7 |
+| 1.0bp | +1.0% | 0.09 | 9.2 |
+| 1.5bp | −1.5% | — | never |
+
+At realistic index-CFD spreads, **net ~+1%/yr, Sharpe ~0.09 — not viable.** The 6.15% carry
+eats the overnight premium, exactly as the financing-gated analysis predicted. Even the
+optimistic 0.5bp case (Sharpe 0.32, ~3yr to pass) is below the high-Sharpe bar we needed.
+
+**On FUTURES there is no separate overnight financing** (basis only) → the net-of-spread
+Sharpe (~0.65–0.87) applies → viable. The edge is real; the FTMO-CFD venue's carry kills it.
+Home = futures (MFF / self-funded), not FTMO CFDs.
