@@ -36,6 +36,7 @@ from backtest.run_roster import load_spine
 from strategies.london_momo import LondonMomoStrategy
 from strategies.london_fix import LondonFixStrategy
 from strategies.audjpy_trend import AudjpyTrendStrategy
+from strategies.regime_gated import RegimeTrendStrategy, RegimeMeanRevStrategy
 
 INITIAL = 200_000.0
 BARS_PER_DAY = {"M15": 96, "H1": 24, "H4": 6}
@@ -105,13 +106,32 @@ def whites_reality_check(mat: pd.DataFrame, b: int = 2000) -> tuple[float, str]:
 
 
 def main():
+    specs = {"GBPUSD": GBPUSD_SPEC, "XAUUSD": XAUUSD_SPEC, "AUDJPY": AUDJPY_SPEC,
+             "EURUSD": __import__("backtest.costs", fromlist=["EURUSD_SPEC"]).EURUSD_SPEC}
+    # EURGBP has no predefined spec; build one (5-digit cross, ~£/€ tick — sizing R is
+    # tick_value-invariant so the approximation doesn't affect edge metrics).
+    from backtest.costs import SymbolSpec
+    specs["EURGBP"] = SymbolSpec("EURGBP", 100_000, 0.00001, 1.3, 3.5, 1.5)
+
+    def trend(sym, tf, regime):
+        return Candidate(f"RegimeTrend[{regime}] {sym} {tf}",
+                         (lambda s, r: (lambda _is: RegimeTrendStrategy(spec=specs[s], regime=r, window=60)))(sym, regime),
+                         sym, tf, specs[sym])
+
+    def mr(sym, tf, regime):
+        return Candidate(f"RegimeMeanRev[{regime}] {sym} {tf}",
+                         (lambda s, r: (lambda _is: RegimeMeanRevStrategy(spec=specs[s], regime=r, window=60)))(sym, regime),
+                         sym, tf, specs[sym])
+
     candidates = [
-        Candidate("LondonMomo (GBPUSD M15)", lambda _is: LondonMomoStrategy(spec=GBPUSD_SPEC),
-                  "GBPUSD", "M15", GBPUSD_SPEC),
+        # --- roster baseline (known dead; part of the White's-RC universe) ---
         Candidate("LondonFix (XAUUSD M15)", lambda _is: LondonFixStrategy(spec=XAUUSD_SPEC),
                   "XAUUSD", "M15", XAUUSD_SPEC),
-        Candidate("AudjpyTrend (AUDJPY H4)", lambda _is: AudjpyTrendStrategy(spec=AUDJPY_SPEC),
-                  "AUDJPY", "H4", AUDJPY_SPEC),
+        # --- regime-gated TREND (ADX), H1/H4 ---
+        trend("XAUUSD", "H1", "adx"), trend("GBPUSD", "H1", "adx"),
+        trend("EURUSD", "H1", "adx"), trend("AUDJPY", "H4", "adx"),
+        # --- regime-gated MEAN-REVERSION (ADX), H1 ---
+        mr("EURGBP", "H1", "adx"), mr("EURUSD", "H1", "adx"), mr("GBPUSD", "H1", "adx"),
     ]
 
     print(f"# Alpha gatekeeper — walk-forward OOS + White's Reality Check\n")
