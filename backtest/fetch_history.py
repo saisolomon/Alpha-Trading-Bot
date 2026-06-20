@@ -135,7 +135,26 @@ def fetch_dukascopy(symbol: str, tf: str, start: dt.date, end: dt.date) -> pd.Da
 # --------------------------------------------------------------------------- #
 # OANDA-via-MT5 (the parity spine) — runs only with a live terminal
 # --------------------------------------------------------------------------- #
+MT5_MAX_BARS = 500_000   # copy_rates_from_pos cap; MT5 returns min(available, MaxBars)
+
+
 def fetch_mt5(symbol: str, tf: str, start: dt.date, end: dt.date) -> pd.DataFrame:
+    """Pull the parity-spine bars from a running OANDA terminal.
+
+    TIME SEMANTICS (decided 2026-06-20 after the live pull): bars are stored in RAW
+    BROKER time (OANDA-Demo, ~UTC+2/+3), NOT converted to UTC. Reasons:
+      1. The EAs run on broker TimeCurrent() (the session-clock finding), so a
+         broker-time backtest is MORE faithful to live than a UTC-converted one —
+         converting then re-applying broker assumptions would double-convert.
+      2. Naive offset auto-detect via the last tick is unreliable (stale on weekends;
+         it returned "UTC+-21" on the first run). Guessing an offset silently corrupts
+         every timestamp — the exact clock-bug class this project keeps hitting.
+    True-UTC alignment is done EMPIRICALLY later in the feed-divergence step, by
+    cross-correlating against Dukascopy (native UTC) to recover the real per-period
+    offset incl. DST shifts. Output column 'time' here = broker time; tagged in a
+    sidecar .meta.json so downstream never assumes UTC.
+    """
+    import json as _json
     import MetaTrader5 as mt5
     tfmap = {"M15": mt5.TIMEFRAME_M15, "H1": mt5.TIMEFRAME_H1,
              "H4": mt5.TIMEFRAME_H4, "M1": mt5.TIMEFRAME_M1}
@@ -143,37 +162,37 @@ def fetch_mt5(symbol: str, tf: str, start: dt.date, end: dt.date) -> pd.DataFram
         raise RuntimeError(f"mt5.initialize() failed: {mt5.last_error()} — "
                            "is the terminal running + logged into OANDA?")
     try:
-        sym = symbol + ".sim"        # OANDA Simulation suffix
+        sym = symbol + ".sim"
         if not mt5.symbol_select(sym, True):
-            sym = symbol             # fall back to bare symbol
-        a = dt.datetime(start.year, start.month, start.day, tzinfo=dt.timezone.utc)
-        b = dt.datetime(end.year, end.month, end.day, tzinfo=dt.timezone.utc)
-        rates = mt5.copy_rates_range(sym, tfmap[tf], a, b)
+            sym = symbol
+            mt5.symbol_select(sym, True)
+        # copy_rates_from_pos is robust where copy_rates_range returns -2 'Invalid
+        # params' on large M15 ranges (and it forces the on-demand download).
+        rates = mt5.copy_rates_from_pos(sym, tfmap[tf], 0, MT5_MAX_BARS)
         if rates is None or len(rates) == 0:
             raise RuntimeError(f"no rates for {sym} {tf}: {mt5.last_error()}")
         df = pd.DataFrame(rates)
-        # MT5 'time' is broker-local epoch seconds (UTC+2/+3). Normalize to true UTC.
-        broker_off = _detect_broker_utc_offset(mt5, sym)
-        df["time"] = (pd.to_datetime(df["time"], unit="s")
-                      - pd.Timedelta(hours=broker_off))
-        df = df.rename(columns={"tick_volume": "volume", "real_volume": "rvol"})
-        out = df[["time", "open", "high", "low", "close", "volume"]].copy()
+        df["time"] = pd.to_datetime(df["time"], unit="s")     # RAW broker time
+        df = df.rename(columns={"tick_volume": "volume"})
+        a = pd.Timestamp(start)
+        b = pd.Timestamp(end)
+        df = df[(df["time"] >= a) & (df["time"] < b)]
+        cols = ["time", "open", "high", "low", "close", "volume"]
         if "spread" in df:
-            out["spread"] = df["spread"]
-        print(f"[mt5] {symbol} {tf}: {len(out):,} bars (broker offset UTC+{broker_off} removed)")
+            cols.append("spread")
+        out = df[cols].reset_index(drop=True)
+        span = f"{out['time'].iloc[0]:%Y-%m-%d}..{out['time'].iloc[-1]:%Y-%m-%d}" if len(out) else "empty"
+        print(f"[mt5] {symbol} {tf}: {len(out):,} bars [BROKER time, {span}]")
+        # sidecar so downstream never mistakes broker time for UTC
+        meta = OUT_ROOT / "mt5" / f"{symbol}_{tf}.meta.json"
+        meta.parent.mkdir(parents=True, exist_ok=True)
+        meta.write_text(_json.dumps({"symbol": symbol, "tf": tf, "rows": len(out),
+                                     "time_basis": "broker_OANDA_demo_UTC+2or3",
+                                     "utc_aligned": False,
+                                     "note": "empirical UTC offset recovered in the divergence step"}))
         return out
     finally:
         mt5.shutdown()
-
-
-def _detect_broker_utc_offset(mt5, sym: str) -> int:
-    """Best-effort broker->UTC hour offset from the latest tick (server time vs real UTC)."""
-    tick = mt5.symbol_info_tick(sym)
-    if tick and tick.time:
-        server = dt.datetime.utcfromtimestamp(tick.time)
-        now = dt.datetime.utcnow()
-        return int(round((server - now).total_seconds() / 3600))
-    return 3   # OANDA-Demo summer default (UTC+3); winter is UTC+2 — verify in divergence report
 
 
 # --------------------------------------------------------------------------- #
