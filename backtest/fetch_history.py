@@ -135,7 +135,30 @@ def fetch_dukascopy(symbol: str, tf: str, start: dt.date, end: dt.date) -> pd.Da
 # --------------------------------------------------------------------------- #
 # OANDA-via-MT5 (the parity spine) — runs only with a live terminal
 # --------------------------------------------------------------------------- #
-MT5_MAX_BARS = 500_000   # copy_rates_from_pos cap; MT5 returns min(available, MaxBars)
+MT5_CHUNK_DAYS = 90      # copy_rates_range per-window size; small enough that even M15
+                         # never exceeds the terminal's max-bars-per-call limit (the -2
+                         # 'Invalid params' that a whole-range M15 call triggers).
+
+
+def _mt5_chunked_range(mt5, sym, tf_const, start: dt.date, end: dt.date) -> pd.DataFrame | None:
+    """Pull [start,end) in 90-day windows via copy_rates_range, concat + dedupe.
+    Windows entirely before the terminal's available history return empty and are
+    skipped (not an error). copy_rates_range is proven to work here; only the
+    whole-range M15 call overflowed."""
+    frames = []
+    cur = dt.datetime(start.year, start.month, start.day, tzinfo=dt.timezone.utc)
+    stop = dt.datetime(end.year, end.month, end.day, tzinfo=dt.timezone.utc)
+    step = dt.timedelta(days=MT5_CHUNK_DAYS)
+    while cur < stop:
+        ce = min(cur + step, stop)
+        r = mt5.copy_rates_range(sym, tf_const, cur, ce)
+        if r is not None and len(r):
+            frames.append(pd.DataFrame(r))
+        cur = ce
+    if not frames:
+        return None
+    df = pd.concat(frames, ignore_index=True)
+    return df.drop_duplicates(subset="time").sort_values("time").reset_index(drop=True)
 
 
 def fetch_mt5(symbol: str, tf: str, start: dt.date, end: dt.date) -> pd.DataFrame:
@@ -166,17 +189,13 @@ def fetch_mt5(symbol: str, tf: str, start: dt.date, end: dt.date) -> pd.DataFram
         if not mt5.symbol_select(sym, True):
             sym = symbol
             mt5.symbol_select(sym, True)
-        # copy_rates_from_pos is robust where copy_rates_range returns -2 'Invalid
-        # params' on large M15 ranges (and it forces the on-demand download).
-        rates = mt5.copy_rates_from_pos(sym, tfmap[tf], 0, MT5_MAX_BARS)
-        if rates is None or len(rates) == 0:
+        # Chunked copy_rates_range: robust for ALL timeframes (the whole-range M15
+        # call overflows with -2; 90-day windows never do).
+        df = _mt5_chunked_range(mt5, sym, tfmap[tf], start, end)
+        if df is None or len(df) == 0:
             raise RuntimeError(f"no rates for {sym} {tf}: {mt5.last_error()}")
-        df = pd.DataFrame(rates)
         df["time"] = pd.to_datetime(df["time"], unit="s")     # RAW broker time
         df = df.rename(columns={"tick_volume": "volume"})
-        a = pd.Timestamp(start)
-        b = pd.Timestamp(end)
-        df = df[(df["time"] >= a) & (df["time"] < b)]
         cols = ["time", "open", "high", "low", "close", "volume"]
         if "spread" in df:
             cols.append("spread")
