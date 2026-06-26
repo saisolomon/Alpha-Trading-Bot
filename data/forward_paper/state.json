@@ -1,0 +1,31 @@
+{
+  "freeze_date": "2026-06-26",
+  "spec": {
+    "strategy": "TS-12m",
+    "lookback": 12,
+    "skip": 1,
+    "vol_target": 0.1,
+    "cost_bps": 20.0,
+    "vol_window": 12,
+    "universe": [
+      "SPY",
+      "QQQ",
+      "IWM",
+      "EFA",
+      "EEM",
+      "TLT",
+      "IEF",
+      "LQD",
+      "HYG",
+      "GLD",
+      "SLV",
+      "USO",
+      "DBC",
+      "VNQ",
+      "UUP",
+      "BTC-USD",
+      "ETH-USD"
+    ]
+  },
+  "note": "forward OOS validation of momentum before self-funded deployment"
+}

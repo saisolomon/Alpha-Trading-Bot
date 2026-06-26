@@ -92,3 +92,6 @@ node_modules/
 
 # Reproducible historical-data cache (pulled by backtest/fetch_history.py)
 data/history/
+
+# forward-paper daily equity log (regenerable; state.json is the committed contract)
+data/forward_paper/*.csv
